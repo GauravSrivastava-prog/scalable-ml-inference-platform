@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml-platform-core"
+version = "0.1.0"
+description = "Shared core library for ML Inference Platform"
+authors = [{name = "Gaurav Srivastava"}]
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi==0.109.2",
+    "uvicorn[standard]==0.27.1",
+    "sqlalchemy[asyncio]==2.0.27",
+    "asyncpg==0.29.0",
+    "pydantic==2.6.1",
+    "pydantic-settings==2.1.0",
+    "python-jose[cryptography]==3.3.0",
+    "passlib[bcrypt]==1.7.4",
+    "python-multipart==0.0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
