@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from ml_platform_core.schemas.prediction import BatchPredictionRequest, BatchPredictionResponse
 from ml_platform_core.dependencies import get_current_user, get_db
 from ml_platform_core.models.user import User
 from ml_platform_core.schemas.prediction import (
@@ -50,3 +50,16 @@ async def get_prediction(
 ):
     """Get a specific prediction (ownership-scoped)."""
     return await PredictionService.get_prediction(db, prediction_id, current_user)
+
+@router.post("/batch", response_model=BatchPredictionResponse)
+async def batch_predict(
+    request: BatchPredictionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+
+    return await PredictionService.batch_predict(
+        db=db,
+        user=current_user,
+        request=request,
+    )

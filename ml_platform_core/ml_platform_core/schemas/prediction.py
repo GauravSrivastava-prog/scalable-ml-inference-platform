@@ -40,3 +40,22 @@ class PredictionListResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class BatchPredictionRequest(BaseModel):
+    model_id: UUID
+    input_data: list[dict[str, Any]]
+
+
+class BatchPredictionItem(BaseModel):
+    result: Any | None = None
+    probabilities: list[float] | None = None
+    error: str | None = None
+
+
+class BatchPredictionResponse(BaseModel):
+    model_id: UUID
+    predictions: list[BatchPredictionItem]
+    total_predictions: int
+    successful_predictions: int
+    failed_predictions: int
+    latency_ms: float

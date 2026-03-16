@@ -1,5 +1,10 @@
 """Prediction Service — FastAPI application factory."""
+import os
+import logging
+from sqlalchemy import select
 
+from app.core.cache_instance import model_cache
+from ml_platform_core.models.ml_model import MLModel
 from fastapi import FastAPI
 from sqlalchemy import text
 
@@ -40,7 +45,53 @@ def create_app() -> FastAPI:
                 status_code=503,
                 content={"status": "unhealthy", "database": "disconnected"},
             )
+    
+    @application.on_event("startup")
+    async def warm_model_cache():
+        """
+        Warm-load recently used models into the in-memory cache
+        to reduce cold-start latency.
+        """
+        logger.info("Starting model cache warm-up...")
 
+        try:
+            async with async_session_factory() as session:
+                result = await session.execute(
+                    select(MLModel)
+                    .where(MLModel.status == "ready")
+                    .order_by(MLModel.updated_at.desc())
+                    .limit(model_cache.max_size)
+                )
+
+                models = result.scalars().all()
+
+                if not models:
+                    logger.info("No ready models found for warm-up.")
+                    return
+
+                for model in models:
+                    try:
+                        model_path = os.path.join("/app/storage", model.file_path)
+
+                        if not os.path.isfile(model_path):
+                            logger.warning(
+                                f"Warm-load skipped: file missing for {model.name} v{model.version}"
+                            )
+                            continue
+
+                        await model_cache.get_model(model_path)
+
+                        logger.info(
+                            f"Warm-loaded model: {model.name} v{model.version}"
+                        )
+
+                    except Exception as exc:
+                        logger.error(
+                            f"Warm-load failed for model {model.name}: {exc}"
+                        )
+
+        except Exception as exc:
+            logger.error(f"Model cache warm-up failed: {exc}")
     return application
 
 
