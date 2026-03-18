@@ -26,3 +26,4 @@ pgdata/
 model-service/app/storage/
 # Datasets
 *.csv
+venv/
