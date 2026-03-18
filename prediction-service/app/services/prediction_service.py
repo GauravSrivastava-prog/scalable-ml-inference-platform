@@ -9,6 +9,27 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from prometheus_client import Counter, Histogram  # <-- NEW IMPORT
+
+# --- NEW PROMETHEUS METRICS DEFINITIONS ---
+INFERENCE_REQUESTS = Counter(
+    "inference_requests_total",
+    "Total number of inference requests",
+    ["model_id", "status", "type"]
+)
+INFERENCE_LATENCY = Histogram(
+    "inference_latency_seconds",
+    "Inference latency in seconds",
+    ["model_id", "type"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+)
+MODEL_PROBABILITIES = Histogram(
+    "model_prediction_probability",
+    "Model prediction probabilities (confidence)",
+    ["model_id", "class_index"],
+    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+)
+# ------------------------------------------
 
 from app.core.cache_instance import model_cache
 from ml_platform_core.schemas.prediction import (
@@ -108,6 +129,10 @@ class PredictionService:
 
             latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
+            # --- NEW METRIC: TRACK FAILURE ---
+            INFERENCE_LATENCY.labels(model_id=str(data.model_id), type="single").observe(latency_ms / 1000.0)
+            INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="failed", type="single").inc()
+
             prediction_record = Prediction(
                 user_id=user.id,
                 model_id=data.model_id,
@@ -123,6 +148,15 @@ class PredictionService:
             raise DataValidationError(f"Prediction failed: {str(exc)}")
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        # --- NEW METRIC: TRACK SUCCESS & PROBABILITIES ---
+        INFERENCE_LATENCY.labels(model_id=str(data.model_id), type="single").observe(latency_ms / 1000.0)
+        INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="completed", type="single").inc()
+        
+        if probabilities:
+            for idx, prob in enumerate(probabilities):
+                MODEL_PROBABILITIES.labels(model_id=str(data.model_id), class_index=str(idx)).observe(prob)
+        # -------------------------------------------------
 
         prediction_record = Prediction(
             user_id=user.id,
@@ -150,43 +184,6 @@ class PredictionService:
         )
 
     @staticmethod
-    async def list_predictions(
-        db: AsyncSession,
-        user: User,
-    ) -> list[Prediction]:
-        """List predictions owned by the user."""
-
-        result = await db.execute(
-            select(Prediction)
-            .where(Prediction.user_id == user.id)
-            .order_by(Prediction.created_at.desc())
-        )
-
-        return list(result.scalars().all())
-
-    @staticmethod
-    async def get_prediction(
-        db: AsyncSession,
-        prediction_id: uuid.UUID,
-        user: User,
-    ) -> Prediction:
-        """Get a single prediction."""
-
-        result = await db.execute(
-            select(Prediction).where(
-                Prediction.id == prediction_id,
-                Prediction.user_id == user.id,
-            )
-        )
-
-        prediction = result.scalar_one_or_none()
-
-        if prediction is None:
-            raise ResourceNotFoundError("Prediction not found")
-
-        return prediction
-
-    @staticmethod
     async def batch_predict(
         db: AsyncSession,
         user: User,
@@ -200,7 +197,6 @@ class PredictionService:
 
         start_time = time.perf_counter()
 
-        # Fetch model
         result = await db.execute(
             select(MLModel).where(
                 MLModel.id == request.model_id,
@@ -234,17 +230,12 @@ class PredictionService:
         valid_rows = []
         valid_indices = []
 
-        # Step 1 — Validate inputs
         for idx, row in enumerate(request.input_data):
-
             try:
                 _validate_input_features(row, feature_columns)
-
                 valid_rows.append(row)
                 valid_indices.append(idx)
-
             except Exception as exc:
-
                 predictions[idx] = BatchPredictionItem(
                     result=None,
                     probabilities=None,
@@ -254,18 +245,14 @@ class PredictionService:
         successful = 0
         failed = len(request.input_data) - len(valid_rows)
 
-        # Step 2 — Run vectorized inference
         if valid_rows:
-
             df = pd.DataFrame(valid_rows)[feature_columns]
 
-            # Apply label encoders
             for col, le in label_encoders.items():
                 if col in df.columns:
                     df[col] = le.transform(df[col].astype(str))
 
             try:
-
                 raw_predictions = pipeline.predict(df)
 
                 probabilities = None
@@ -275,12 +262,9 @@ class PredictionService:
                     probabilities = None
 
                 for i, idx in enumerate(valid_indices):
-
                     pred_value: Any = raw_predictions[i]
-
                     if hasattr(pred_value, "item"):
                         pred_value = pred_value.item()
-
                     if target_encoder is not None:
                         pred_value = target_encoder.inverse_transform(
                             [int(pred_value)]
@@ -295,23 +279,33 @@ class PredictionService:
                         probabilities=proba,
                         error=None,
                     )
-
                     successful += 1
 
             except Exception as exc:
-
-                # catastrophic failure
                 for idx in valid_indices:
                     predictions[idx] = BatchPredictionItem(
                         result=None,
                         probabilities=None,
                         error=str(exc),
                     )
-
                 failed += len(valid_indices)
                 successful = 0
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        # --- NEW METRIC: TRACK BATCH SUCCESS/FAILURE & PROBABILITIES ---
+        INFERENCE_LATENCY.labels(model_id=str(request.model_id), type="batch").observe(latency_ms / 1000.0)
+        
+        if successful > 0:
+            INFERENCE_REQUESTS.labels(model_id=str(request.model_id), status="completed", type="batch").inc(successful)
+        if failed > 0:
+            INFERENCE_REQUESTS.labels(model_id=str(request.model_id), status="failed", type="batch").inc(failed)
+
+        for item in predictions:
+            if item and item.probabilities:
+                for idx, prob in enumerate(item.probabilities):
+                    MODEL_PROBABILITIES.labels(model_id=str(request.model_id), class_index=str(idx)).observe(prob)
+        # ---------------------------------------------------------------
 
         logger.info(
             f"Vectorized batch prediction completed: "
@@ -334,9 +328,7 @@ def _validate_input_features(
     feature_columns: list[str],
 ) -> None:
     """Ensure required features exist in input."""
-
     missing = [col for col in feature_columns if col not in input_data]
-
     if missing:
         raise DataValidationError(
             f"Missing features in input_data: {missing}. "

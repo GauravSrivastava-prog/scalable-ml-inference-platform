@@ -7,6 +7,7 @@ from app.core.cache_instance import model_cache
 from ml_platform_core.models.ml_model import MLModel
 from fastapi import FastAPI
 from sqlalchemy import text
+from prometheus_fastapi_instrumentator import Instrumentator # <-- NEW IMPORT
 
 from ml_platform_core.config import get_settings
 from ml_platform_core.database import async_session_factory
@@ -92,7 +93,10 @@ def create_app() -> FastAPI:
 
         except Exception as exc:
             logger.error(f"Model cache warm-up failed: {exc}")
-    return application
 
+    # --- NEW SYSTEM METRICS INSTRUMENTATION ---
+    Instrumentator().instrument(application).expose(application)
+
+    return application
 
 app = create_app()

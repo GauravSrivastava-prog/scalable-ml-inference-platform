@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from sqlalchemy import text
-
+from prometheus_fastapi_instrumentator import Instrumentator
 from ml_platform_core.config import get_settings
 from ml_platform_core.database import async_session_factory
 from ml_platform_core.exceptions import MLPlatformError, ml_platform_exception_handler
@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
                 status_code=503,
                 content={"status": "unhealthy", "database": "disconnected"},
             )
-
+    Instrumentator().instrument(application).expose(application)
     return application
 
 
