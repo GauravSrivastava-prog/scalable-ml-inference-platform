@@ -4,14 +4,16 @@ import logging
 import os
 import time
 import uuid
+import json
+import hashlib
 from typing import Any
 
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from prometheus_client import Counter, Histogram  # <-- NEW IMPORT
+from prometheus_client import Counter, Histogram
 
-# --- NEW PROMETHEUS METRICS DEFINITIONS ---
+# --- PROMETHEUS METRICS DEFINITIONS ---
 INFERENCE_REQUESTS = Counter(
     "inference_requests_total",
     "Total number of inference requests",
@@ -29,8 +31,9 @@ MODEL_PROBABILITIES = Histogram(
     ["model_id", "class_index"],
     buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 )
-# ------------------------------------------
+# --------------------------------------
 
+from app.core.redis_client import redis_cache
 from app.core.cache_instance import model_cache
 from ml_platform_core.schemas.prediction import (
     BatchPredictionRequest,
@@ -61,6 +64,26 @@ class PredictionService:
     ) -> PredictionResponse:
         """Load model, run inference, measure latency, persist result."""
 
+        # --- TIER 2 CACHE: CHECK REDIS FIRST (SINGLE) ---
+        request_dict = data.model_dump() if hasattr(data, "model_dump") else data.dict()
+        request_hash = hashlib.sha256(json.dumps(request_dict, sort_keys=True, default=str).encode()).hexdigest()
+        cache_key = f"predict:{data.model_id}:{request_hash}"
+
+        if redis_cache.client:
+            try:
+                cached_result = await redis_cache.client.get(cache_key)
+                if cached_result:
+                    logger.info("[TIER 2 HIT - REDIS] Bypassing ML Model")
+                    cached_data = json.loads(cached_result)
+                    
+                    # Record Prometheus cache hit
+                    INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="cache_hit", type="single").inc()
+                    
+                    return PredictionResponse(**cached_data)
+            except Exception as e:
+                logger.warning(f"Redis fetch failed, falling back to ML model: {e}")
+        # ------------------------------------------------
+
         result = await db.execute(
             select(MLModel).where(
                 MLModel.id == data.model_id,
@@ -85,6 +108,7 @@ class PredictionService:
         start_time = time.perf_counter()
 
         try:
+            # --- TIER 1 CACHE: LOAD/FETCH MODEL FROM LOCAL RAM ---
             model_artifact = await model_cache.get_model(model_path)
 
             pipeline = model_artifact["pipeline"]
@@ -126,10 +150,8 @@ class PredictionService:
 
         except Exception as exc:
             logger.error(f"Prediction failed: {exc}")
-
             latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
-            # --- NEW METRIC: TRACK FAILURE ---
             INFERENCE_LATENCY.labels(model_id=str(data.model_id), type="single").observe(latency_ms / 1000.0)
             INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="failed", type="single").inc()
 
@@ -141,7 +163,6 @@ class PredictionService:
                 latency_ms=latency_ms,
                 status="failed",
             )
-
             db.add(prediction_record)
             await db.flush()
 
@@ -149,14 +170,12 @@ class PredictionService:
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
-        # --- NEW METRIC: TRACK SUCCESS & PROBABILITIES ---
         INFERENCE_LATENCY.labels(model_id=str(data.model_id), type="single").observe(latency_ms / 1000.0)
         INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="completed", type="single").inc()
         
         if probabilities:
             for idx, prob in enumerate(probabilities):
                 MODEL_PROBABILITIES.labels(model_id=str(data.model_id), class_index=str(idx)).observe(prob)
-        # -------------------------------------------------
 
         prediction_record = Prediction(
             user_id=user.id,
@@ -176,12 +195,24 @@ class PredictionService:
             f"latency={latency_ms}ms"
         )
 
-        return PredictionResponse(
+        response = PredictionResponse(
             prediction_id=prediction_record.id,
             result=pred_value,
             probabilities=probabilities,
             latency_ms=latency_ms,
         )
+
+        # --- TIER 2 CACHE: SAVE TO REDIS (SINGLE) ---
+        if redis_cache.client:
+            try:
+                response_json = response.model_dump_json() if hasattr(response, "model_dump_json") else response.json()
+                await redis_cache.client.setex(cache_key, 3600, response_json)
+                logger.info("[TIER 2 STORE - REDIS] Saved prediction for 1 hour")
+            except Exception as e:
+                logger.warning(f"Redis save failed: {e}")
+        # --------------------------------------------
+
+        return response
 
     @staticmethod
     async def batch_predict(
@@ -194,6 +225,26 @@ class PredictionService:
             raise DataValidationError(
                 f"Batch size cannot exceed {MAX_BATCH_SIZE}"
             )
+
+        # --- TIER 2 CACHE: CHECK REDIS FIRST (BATCH) ---
+        request_dict = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+        request_hash = hashlib.sha256(json.dumps(request_dict, sort_keys=True, default=str).encode()).hexdigest()
+        cache_key = f"batch_predict:{request.model_id}:{request_hash}"
+
+        if redis_cache.client:
+            try:
+                cached_result = await redis_cache.client.get(cache_key)
+                if cached_result:
+                    logger.info(f"[TIER 2 HIT - REDIS] Bypassing ML Model for Batch of {len(request.input_data)}")
+                    cached_data = json.loads(cached_result)
+                    
+                    # Record Prometheus cache hit for the entire batch size
+                    INFERENCE_REQUESTS.labels(model_id=str(request.model_id), status="cache_hit", type="batch").inc(len(request.input_data))
+                    
+                    return BatchPredictionResponse(**cached_data)
+            except Exception as e:
+                logger.warning(f"Redis fetch failed for batch, falling back to ML model: {e}")
+        # -----------------------------------------------
 
         start_time = time.perf_counter()
 
@@ -218,6 +269,7 @@ class PredictionService:
         if not os.path.isfile(model_path):
             raise ResourceNotFoundError("Model file not found on disk")
 
+        # --- TIER 1 CACHE: LOAD/FETCH MODEL FROM LOCAL RAM ---
         model_artifact = await model_cache.get_model(model_path)
 
         pipeline = model_artifact["pipeline"]
@@ -293,7 +345,6 @@ class PredictionService:
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
-        # --- NEW METRIC: TRACK BATCH SUCCESS/FAILURE & PROBABILITIES ---
         INFERENCE_LATENCY.labels(model_id=str(request.model_id), type="batch").observe(latency_ms / 1000.0)
         
         if successful > 0:
@@ -305,7 +356,6 @@ class PredictionService:
             if item and item.probabilities:
                 for idx, prob in enumerate(item.probabilities):
                     MODEL_PROBABILITIES.labels(model_id=str(request.model_id), class_index=str(idx)).observe(prob)
-        # ---------------------------------------------------------------
 
         logger.info(
             f"Vectorized batch prediction completed: "
@@ -314,7 +364,7 @@ class PredictionService:
             f"latency={latency_ms}ms"
         )
 
-        return BatchPredictionResponse(
+        response = BatchPredictionResponse(
             model_id=request.model_id,
             predictions=predictions,
             total_predictions=len(request.input_data),
@@ -322,6 +372,19 @@ class PredictionService:
             failed_predictions=failed,
             latency_ms=latency_ms,
         )
+
+        # --- TIER 2 CACHE: SAVE TO REDIS (BATCH) ---
+        if redis_cache.client:
+            try:
+                response_json = response.model_dump_json() if hasattr(response, "model_dump_json") else response.json()
+                await redis_cache.client.setex(cache_key, 3600, response_json)
+                logger.info("[TIER 2 STORE - REDIS] Saved batch prediction for 1 hour")
+            except Exception as e:
+                logger.warning(f"Redis batch save failed: {e}")
+        # -------------------------------------------
+
+        return response
+
 
 def _validate_input_features(
     input_data: dict[str, Any],

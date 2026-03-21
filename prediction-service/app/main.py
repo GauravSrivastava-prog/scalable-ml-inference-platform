@@ -2,7 +2,7 @@
 import os
 import logging
 from sqlalchemy import select
-
+from app.core.redis_client import redis_cache
 from app.core.cache_instance import model_cache
 from ml_platform_core.models.ml_model import MLModel
 from fastapi import FastAPI
@@ -46,6 +46,16 @@ def create_app() -> FastAPI:
                 status_code=503,
                 content={"status": "unhealthy", "database": "disconnected"},
             )
+    
+    # --- REDIS LIFECYCLE EVENTS ---
+    @application.on_event("startup")
+    async def startup_redis():
+        await redis_cache.connect()
+
+    @application.on_event("shutdown")
+    async def shutdown_redis():
+        await redis_cache.close()
+    # ------------------------------
     
     @application.on_event("startup")
     async def warm_model_cache():

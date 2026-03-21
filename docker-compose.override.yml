@@ -12,7 +12,7 @@ services:
     depends_on:
       - postgres
     volumes:
-      - model-storage:/app/model-storage
+      - model-storage:/app/storage
 
   prediction-service-2:
     build:
@@ -23,7 +23,7 @@ services:
     depends_on:
       - postgres
     volumes:
-      - model-storage:/app/model-storage
+      - model-storage:/app/storage
 
   prediction-service-3:
     build:
@@ -34,7 +34,7 @@ services:
     depends_on:
       - postgres
     volumes:
-      - model-storage:/app/model-storage
+      - model-storage:/app/storage
 
   nginx-lb:
     image: nginx:latest
