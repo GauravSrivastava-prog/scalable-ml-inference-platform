@@ -7,7 +7,7 @@ import uuid
 import json
 import hashlib
 from typing import Any
-
+from uuid import UUID
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -213,6 +213,29 @@ class PredictionService:
         # --------------------------------------------
 
         return response
+    @staticmethod
+    async def list_predictions(db: AsyncSession, user: User) -> list[Prediction]:
+        """Fetch all predictions for the current logged-in user."""
+        result = await db.execute(
+            select(Prediction)
+            .where(Prediction.user_id == user.id)
+            .order_by(Prediction.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_prediction(
+        db: AsyncSession, prediction_id: UUID, user: User
+    ) -> Prediction:
+        """Fetch a specific prediction ensuring it belongs to the user."""
+        result = await db.execute(
+            select(Prediction)
+            .where(Prediction.id == prediction_id, Prediction.user_id == user.id)
+        )
+        prediction = result.scalar_one_or_none()
+        if prediction is None:
+            raise ResourceNotFoundError("Prediction not found")
+        return prediction
 
     @staticmethod
     async def batch_predict(

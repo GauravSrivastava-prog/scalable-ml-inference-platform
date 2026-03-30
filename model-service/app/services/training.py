@@ -163,14 +163,13 @@ def train_model(
             "train_size": len(X_train),
             "test_size": len(X_test),
         }
-        # Add calibration metrics if probabilities available
-        if y_prob is not None:
+        
+        # Only calculate advanced probability metrics for BINARY classification to prevent matrix shape errors
+        if hasattr(pipeline, "predict_proba") and len(np.unique(y)) == 2:
+            y_prob = pipeline.predict_proba(X_test)[:, 1]
             metrics["log_loss"] = round(float(log_loss(y_test, y_prob)), 4)
             metrics["brier_score"] = round(float(brier_score_loss(y_test, y_prob)), 4)
-            metrics["ece"] = round(
-                float(expected_calibration_error(y_test.to_numpy(), y_prob)),
-                4,
-            )
+            metrics["ece"] = round(float(expected_calibration_error(y_test.to_numpy(), y_prob)), 4)
     else:
         metrics = {
             "task_type": "regression",
@@ -190,6 +189,8 @@ def train_model(
         "task_type": task_type,
     }
     joblib.dump(model_artifact, model_save_path)
-
+    metrics["feature_columns"] = list(X.columns)
+    # We grab the first 3 rows of the raw X dataframe, fill NaNs so JSON doesn't crash, and convert to dict
+    metrics["sample_data"] = X.head(3).fillna("").to_dict(orient="records")
     logger.info(f"Model saved to {model_save_path} | metrics: {metrics}")
     return metrics
