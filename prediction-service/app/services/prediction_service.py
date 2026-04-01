@@ -12,6 +12,12 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from prometheus_client import Counter, Histogram
+from ml_platform_core.database import async_session_factory
+
+# --- FASTAPI & DB IMPORTS ADDED FOR BACKGROUND TASKS ---
+from fastapi import BackgroundTasks
+from ml_platform_core.database import async_session_factory 
+# -------------------------------------------------------
 
 # --- PROMETHEUS METRICS DEFINITIONS ---
 INFERENCE_REQUESTS = Counter(
@@ -55,7 +61,40 @@ MAX_BATCH_SIZE = 100
 
 class PredictionService:
     """Stateless service for inference operations."""
+    @staticmethod
+    async def _save_batch_to_ledger_background(
+        model_id: UUID, 
+        user_id: UUID, 
+        inputs: list[dict], 
+        predictions: list[BatchPredictionItem], 
+        latency_ms: float
+    ):
+        """Silently saves successful predictions to PostgreSQL in the background."""
+        # 1. We wrap the ENTIRE function in a try/except to catch connection errors
+        try:
+            # 2. Open a completely isolated database session specifically for this thread
+            async with async_session_factory() as session:
+                prediction_records = []
+                for idx, item in enumerate(predictions):
+                    if item.error is None:
+                        record = Prediction(
+                            user_id=user_id,
+                            model_id=model_id,
+                            input_data=inputs[idx],
+                            result=item.result,
+                            latency_ms=latency_ms,
+                            status="completed"
+                        )
+                        prediction_records.append(record)
 
+                if prediction_records:
+                    session.add_all(prediction_records)
+                    await session.commit()
+                    logger.info(f"[LEDGER] Background Task: Successfully wrote {len(prediction_records)} records to Postgres.")
+                    
+        except Exception as e:
+            # 3. Explicitly log the error with traceback so it doesn't die silently
+            logger.error(f"[LEDGER ERROR] Background Task Failed: {str(e)}", exc_info=True)
     @staticmethod
     async def predict(
         db: AsyncSession,
@@ -213,6 +252,7 @@ class PredictionService:
         # --------------------------------------------
 
         return response
+
     @staticmethod
     async def list_predictions(db: AsyncSession, user: User) -> list[Prediction]:
         """Fetch all predictions for the current logged-in user."""
@@ -241,7 +281,8 @@ class PredictionService:
     async def batch_predict(
         db: AsyncSession,
         user: User,
-        request: BatchPredictionRequest
+        request: BatchPredictionRequest,
+        background_tasks: BackgroundTasks = None # <-- Accepts the BackgroundTasks object
     ) -> BatchPredictionResponse:
 
         if len(request.input_data) > MAX_BATCH_SIZE:
@@ -264,6 +305,8 @@ class PredictionService:
                     # Record Prometheus cache hit for the entire batch size
                     INFERENCE_REQUESTS.labels(model_id=str(request.model_id), status="cache_hit", type="batch").inc(len(request.input_data))
                     
+                    # We return early here! The background task is NEVER triggered for a cache hit.
+                    # This satisfies Antigravity's Ledger Philosophy rule.
                     return BatchPredictionResponse(**cached_data)
             except Exception as e:
                 logger.warning(f"Redis fetch failed for batch, falling back to ML model: {e}")
@@ -405,6 +448,20 @@ class PredictionService:
             except Exception as e:
                 logger.warning(f"Redis batch save failed: {e}")
         # -------------------------------------------
+
+        # --- FIRE AND FORGET THE POSTGRES DATABASE WRITE! ---
+        if background_tasks:
+            background_tasks.add_task(
+                PredictionService._save_batch_to_ledger_background,
+                request.model_id,
+                user.id,
+                request.input_data,
+                predictions,
+                latency_ms
+            )
+        else:
+            logger.warning("[LEDGER] No background_tasks object provided. Skipping ledger write.")
+        # ----------------------------------------------------
 
         return response
 

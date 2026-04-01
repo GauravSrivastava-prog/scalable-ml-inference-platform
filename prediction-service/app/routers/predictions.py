@@ -3,7 +3,8 @@
 from uuid import UUID
 import httpx
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+# Added BackgroundTasks here
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from ml_platform_core.schemas.prediction import BatchPredictionRequest, BatchPredictionResponse
 from ml_platform_core.dependencies import get_current_user, get_db
@@ -72,6 +73,7 @@ async def get_live_telemetry():
 @router.post("/batch", response_model=BatchPredictionResponse)
 async def batch_predict(
     request: BatchPredictionRequest,
+    background_tasks: BackgroundTasks, # <-- Inject BackgroundTasks
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -79,6 +81,7 @@ async def batch_predict(
         db=db,
         user=current_user,
         request=request,
+        background_tasks=background_tasks # <-- Pass down to service
     )
 
 
