@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Plus, Search, Activity, Box, Clock, MoreVertical, LayoutGrid, List, UploadCloud, X } from 'lucide-react';
+import { Database, Plus, Search, Activity, Box, Clock, List, UploadCloud, X, ArrowRight, Trash2, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from './api';
 import { useAuth } from './AuthContext';
@@ -23,7 +23,7 @@ export default function Studio() {
     const navigate = useNavigate();
     const { logout } = useAuth();
     const [view, setView] = useState<'grid' | 'list'>('grid');
-
+    const [searchQuery, setSearchQuery] = useState('');
     const [models, setModels] = useState<BackendModel[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -57,6 +57,29 @@ export default function Studio() {
         fetchModels();
     }, []);
 
+    const handleDeleteModel = async (e: React.MouseEvent, modelId: string) => {
+        e.stopPropagation(); // Prevents the card click event from navigating to Canvas
+
+        if (!window.confirm("Are you sure you want to delete this model? This action cannot be undone.")) {
+            return;
+        }
+
+        try {
+            const res = await apiFetch(`/api/v1/models/${modelId}`, {
+                method: 'DELETE',
+            });
+
+            if (res.ok) {
+                // Instantly remove it from the React UI state without refreshing
+                setModels(prevModels => prevModels.filter(m => m.id !== modelId));
+            } else {
+                console.error("Failed to delete model");
+            }
+        } catch (error) {
+            console.error("Error deleting model:", error);
+        }
+    };
+
     // --- PIPELINE LOGIC ---
     const handleFileUpload = async () => {
         if (!selectedFile) return;
@@ -66,14 +89,12 @@ export default function Studio() {
         formData.append('file', selectedFile);
 
         try {
-            // FIX: Explicitly grab 'access_token' instead of 'token'
             const token = localStorage.getItem('access_token');
             if (!token) throw new Error("No access token found in browser storage.");
 
             const response = await fetch('http://localhost:9000/api/v1/models/upload-dataset', {
                 method: 'POST',
                 headers: {
-                    // FIX: Ensure exact Bearer formatting
                     'Authorization': `Bearer ${token}`
                 },
                 body: formData
@@ -131,6 +152,12 @@ export default function Studio() {
         }
     };
 
+    // --- SEARCH FILTER LOGIC ---
+    const filteredModels = models.filter(model =>
+        model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        model.algorithm.toLowerCase().replace('_', ' ').includes(searchQuery.toLowerCase())
+    );
+
     return (
         <div className="min-h-screen bg-background font-sans text-primary flex relative">
 
@@ -156,19 +183,41 @@ export default function Studio() {
                                 {modalStep === 'upload' ? (
                                     <div className="space-y-4">
                                         <p className="text-sm text-muted">Step 1: Upload your raw CSV dataset.</p>
-                                        <div className="border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center bg-background/50 text-center">
-                                            <UploadCloud className="h-8 w-8 text-muted mb-3" />
+
+                                        {/* --- UPGRADED DROPZONE --- */}
+                                        <label className="border-2 border-dashed border-white/10 hover:border-accent/50 rounded-xl p-8 flex flex-col items-center justify-center bg-white/[0.02] hover:bg-white/[0.04] text-center cursor-pointer transition-all group relative">
                                             <input
                                                 type="file"
                                                 accept=".csv"
                                                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                                                className="text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/10 file:text-accent hover:file:bg-accent/20 cursor-pointer w-full"
+                                                className="hidden" // Hides the ugly default button!
                                             />
-                                        </div>
+
+                                            {selectedFile ? (
+                                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center">
+                                                    <div className="p-3 bg-green-500/10 text-green-400 rounded-full mb-3">
+                                                        <CheckCircle2 className="h-6 w-6" />
+                                                    </div>
+                                                    <p className="text-sm font-medium text-white truncate max-w-[200px]">{selectedFile.name}</p>
+                                                    <p className="text-xs text-muted mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                    <p className="text-[10px] text-accent mt-4 opacity-0 group-hover:opacity-100 transition-opacity">Click to change file</p>
+                                                </motion.div>
+                                            ) : (
+                                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center">
+                                                    <div className="p-3 bg-white/5 group-hover:bg-accent/10 text-muted group-hover:text-accent rounded-full mb-3 transition-colors">
+                                                        <UploadCloud className="h-6 w-6" />
+                                                    </div>
+                                                    <p className="text-sm font-medium text-white mb-1">Click to browse files</p>
+                                                    <p className="text-xs text-muted">CSV files only</p>
+                                                </motion.div>
+                                            )}
+                                        </label>
+                                        {/* ------------------------- */}
+
                                         <button
                                             onClick={handleFileUpload}
                                             disabled={!selectedFile || isProcessing}
-                                            className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50"
+                                            className="w-full bg-accent hover:bg-accent/90 text-white font-medium py-2.5 rounded-lg transition-colors shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:bg-white/10 disabled:shadow-none"
                                         >
                                             {isProcessing ? 'Uploading to cluster...' : 'Upload Dataset'}
                                         </button>
@@ -248,9 +297,12 @@ export default function Studio() {
                     <div className="flex items-center space-x-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                            {/* WIRED UP THE INPUT HERE */}
                             <input
                                 type="text"
                                 placeholder="Search models..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-64 bg-surface/50 border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-white/30 transition-all"
                             />
                         </div>
@@ -272,9 +324,18 @@ export default function Studio() {
                         </div>
                     )}
 
-                    {!isLoading && models.length > 0 && (
+                    {/* EMPTY STATE FOR SEARCH */}
+                    {!isLoading && models.length > 0 && filteredModels.length === 0 && (
+                        <div className="flex flex-col items-center justify-center h-64 text-center">
+                            <Search className="h-8 w-8 text-muted/30 mb-3" />
+                            <p className="text-muted">No models found matching "{searchQuery}"</p>
+                        </div>
+                    )}
+
+                    {/* MAPPED OVER filteredModels INSTEAD OF models */}
+                    {!isLoading && filteredModels.length > 0 && (
                         <div className={`grid gap-6 ${view === 'grid' ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1'}`}>
-                            {models.map((model) => (
+                            {filteredModels.map((model) => (
                                 <motion.div
                                     key={model.id}
                                     initial={{ opacity: 0, y: 10 }}
@@ -294,6 +355,14 @@ export default function Studio() {
                                                 <span className="capitalize">{model.algorithm.replace('_', ' ')}</span>
                                             </div>
                                         </div>
+
+                                        <button
+                                            onClick={(e) => handleDeleteModel(e, model.id)}
+                                            className="p-2 text-muted hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors z-10"
+                                            title="Delete Model"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4 mt-auto pt-6 border-t border-white/5">
