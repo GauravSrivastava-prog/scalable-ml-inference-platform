@@ -17,7 +17,7 @@ class DatasetUploadResponse(BaseModel):
 class ModelTrainRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     dataset_id: str
-    algorithm: str = Field(..., pattern=r"^(random_forest|logistic_regression|linear_regression|gradient_boosting)$")
+    algorithm: str = Field(..., pattern=r"^(random_forest|logistic_regression|linear_regression|gradient_boosting|decision_tree|xgboost)$")
     target_column: str
     training_params: dict[str, Any] | None = None
 

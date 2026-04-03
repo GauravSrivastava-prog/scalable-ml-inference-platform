@@ -48,7 +48,7 @@ export default function Pulse() {
     const maxRps = Math.max(...trafficHistory, 5);
 
     return (
-        <div className="min-h-screen bg-background font-sans text-primary p-6 sm:p-12 flex flex-col">
+        <div className="min-h-screen bg-transparent relative z-10 font-sans text-primary p-6 sm:p-12 flex flex-col">
             {/* Top Nav */}
             <nav className="flex items-center space-x-4 mb-12 border-b border-white/10 pb-6">
                 <button
