@@ -260,7 +260,8 @@ export default function Canvas() {
 
     if (isLoadingModel) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            // ✅ CHANGED: Loading state is transparent
+            <div className="min-h-screen bg-transparent relative z-10 flex items-center justify-center">
                 <div className="h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
             </div>
         );
@@ -270,7 +271,8 @@ export default function Canvas() {
     const features = metrics.feature_columns || [];
 
     return (
-        <div className="min-h-screen bg-background font-sans text-primary p-6 sm:p-12 flex flex-col h-screen">
+        // ✅ CHANGED: Main container is transparent
+        <div className="min-h-screen bg-transparent relative z-10 font-sans text-primary p-6 sm:p-12 flex flex-col h-screen">
             {/* Top Nav */}
             <nav className="flex items-center justify-between mb-8 border-b border-white/10 pb-6 shrink-0">
                 <div className="flex items-center space-x-4">
@@ -338,7 +340,8 @@ export default function Canvas() {
             </div>
 
             {/* THE SMART TENSOR GRID */}
-            <div className="flex-1 flex flex-col bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden relative">
+            {/* ✅ CHANGED: Replaced solid black with frosted glass */}
+            <div className="flex-1 flex flex-col bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden relative">
                 <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center justify-between shrink-0">
                     <div className="flex items-center space-x-2">
                         <Database className="h-4 w-4 text-muted" />
@@ -378,7 +381,7 @@ export default function Canvas() {
                                         exit={{ opacity: 0, x: -20, scaleY: 0 }}
                                         className="hover:bg-white/[0.02] transition-colors group"
                                     >
-                                        <td className="w-12 sticky left-0 z-20 bg-[#0a0a0a] group-hover:bg-[#111] border-r border-white/5 transition-colors">
+                                        <td className="w-12 sticky left-0 z-20 bg-transparent group-hover:bg-[#111] border-r border-white/5 transition-colors">
                                             <div className="flex items-center justify-center h-full w-full">
                                                 <span className="text-muted/40 text-xs font-mono group-hover:hidden">
                                                     {rIndex + 1}
@@ -417,7 +420,7 @@ export default function Canvas() {
                                             </td>
                                         ))}
 
-                                        <td className="px-4 py-3 border-l border-white/10 sticky right-0 bg-[#0a0a0a] group-hover:bg-[#111] z-20">
+                                        <td className="px-4 py-3 border-l border-white/10 sticky right-0 bg-transparent group-hover:bg-[#111] z-20">
                                             {isPredicting ? (
                                                 <div className="h-4 w-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
                                             ) : results[rIndex] ? (

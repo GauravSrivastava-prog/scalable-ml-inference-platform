@@ -4,6 +4,7 @@ import { User, ArrowRight, Cpu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
+
 export default function Auth() {
     const navigate = useNavigate();
     const { login } = useAuth();
@@ -61,10 +62,12 @@ export default function Auth() {
     };
 
     return (
-        <div className="flex h-screen w-full bg-background overflow-hidden font-sans">
+        // Root container stays bg-transparent so the global canvas shows through
+        <div className="relative flex h-screen w-full bg-transparent overflow-hidden font-sans">
+
 
             {/* Left Side: The "AI Core" Animation */}
-            <div className="relative hidden lg:flex w-1/2 items-center justify-center border-r border-white/5 bg-background">
+            <div className="relative z-10 hidden lg:flex w-1/2 items-center justify-center border-r border-white/5 bg-transparent backdrop-blur-[2px]">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.05)_0%,transparent_50%)]" />
 
                 <motion.div
@@ -81,7 +84,7 @@ export default function Auth() {
             </div>
 
             {/* Right Side: The Login Pane */}
-            <div className="flex w-full lg:w-1/2 items-center justify-center p-8 sm:p-12 lg:p-24">
+            <div className="relative z-10 flex w-full lg:w-1/2 items-center justify-center p-8 sm:p-12 lg:p-24">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}
                     className="w-full max-w-md space-y-10"
@@ -101,7 +104,6 @@ export default function Auth() {
                         </div>
                     )}
 
-                    {/* FIX: Form now uses handleSubmit */}
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-4">
 
@@ -109,7 +111,7 @@ export default function Auth() {
                                 {!isLogin && (
                                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
                                         <input
-                                            type="text" placeholder="Username (e.g., gaurav_01)" required={!isLogin}
+                                            type="text" placeholder="Username (e.g., operator_01)" required={!isLogin}
                                             value={username} onChange={(e) => setUsername(e.target.value)}
                                             className="w-full bg-surface/50 border border-white/10 px-4 py-3 text-sm text-primary placeholder:text-muted focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all rounded-lg"
                                         />
@@ -120,12 +122,12 @@ export default function Auth() {
                             <input
                                 type="email" placeholder="Email address" required
                                 value={email} onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-surface/50 border border-white/10 px-4 py-3 text-sm text-primary placeholder:text-muted focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all rounded-lg"
+                                className="w-full bg-surface/50 border border-white/10 px-4 py-3 text-sm text-primary placeholder:text-muted focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all rounded-lg backdrop-blur-md"
                             />
                             <input
                                 type="password" placeholder="Password" required
                                 value={password} onChange={(e) => setPassword(e.target.value)}
-                                className="w-full bg-surface/50 border border-white/10 px-4 py-3 text-sm text-primary placeholder:text-muted focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all rounded-lg"
+                                className="w-full bg-surface/50 border border-white/10 px-4 py-3 text-sm text-primary placeholder:text-muted focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all rounded-lg backdrop-blur-md"
                             />
                         </div>
 

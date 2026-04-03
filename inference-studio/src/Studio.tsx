@@ -35,6 +35,7 @@ export default function Studio() {
     const [datasetId, setDatasetId] = useState<string | null>(null);
     const [modelName, setModelName] = useState('');
     const [targetColumn, setTargetColumn] = useState('');
+    const [algorithm, setAlgorithm] = useState('random_forest');
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Fetch Models
@@ -58,7 +59,7 @@ export default function Studio() {
     }, []);
 
     const handleDeleteModel = async (e: React.MouseEvent, modelId: string) => {
-        e.stopPropagation(); // Prevents the card click event from navigating to Canvas
+        e.stopPropagation();
 
         if (!window.confirm("Are you sure you want to delete this model? This action cannot be undone.")) {
             return;
@@ -70,7 +71,6 @@ export default function Studio() {
             });
 
             if (res.ok) {
-                // Instantly remove it from the React UI state without refreshing
                 setModels(prevModels => prevModels.filter(m => m.id !== modelId));
             } else {
                 console.error("Failed to delete model");
@@ -124,7 +124,7 @@ export default function Studio() {
             const payload = {
                 name: modelName,
                 dataset_id: datasetId,
-                algorithm: "random_forest",
+                algorithm: algorithm,
                 target_column: targetColumn
             };
 
@@ -135,14 +135,14 @@ export default function Studio() {
 
             if (!response.ok) throw new Error('Training failed');
 
-            // Success! Close modal, reset state, and refresh grid
             setIsModalOpen(false);
             setModalStep('upload');
             setSelectedFile(null);
             setModelName('');
             setTargetColumn('');
+            setAlgorithm('random_forest');
 
-            await fetchModels(); // Refresh the grid to show the new model!
+            await fetchModels();
 
         } catch (err) {
             console.error(err);
@@ -152,14 +152,14 @@ export default function Studio() {
         }
     };
 
-    // --- SEARCH FILTER LOGIC ---
     const filteredModels = models.filter(model =>
         model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         model.algorithm.toLowerCase().replace('_', ' ').includes(searchQuery.toLowerCase())
     );
 
     return (
-        <div className="min-h-screen bg-background font-sans text-primary flex relative">
+        // ✅ CHANGED: Root div is now bg-transparent and relative z-10
+        <div className="min-h-screen bg-transparent font-sans text-primary flex relative z-10">
 
             {/* --- PIPELINE MODAL --- */}
             <AnimatePresence>
@@ -184,13 +184,12 @@ export default function Studio() {
                                     <div className="space-y-4">
                                         <p className="text-sm text-muted">Step 1: Upload your raw CSV dataset.</p>
 
-                                        {/* --- UPGRADED DROPZONE --- */}
                                         <label className="border-2 border-dashed border-white/10 hover:border-accent/50 rounded-xl p-8 flex flex-col items-center justify-center bg-white/[0.02] hover:bg-white/[0.04] text-center cursor-pointer transition-all group relative">
                                             <input
                                                 type="file"
                                                 accept=".csv"
                                                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                                                className="hidden" // Hides the ugly default button!
+                                                className="hidden"
                                             />
 
                                             {selectedFile ? (
@@ -212,7 +211,6 @@ export default function Studio() {
                                                 </motion.div>
                                             )}
                                         </label>
-                                        {/* ------------------------- */}
 
                                         <button
                                             onClick={handleFileUpload}
@@ -242,6 +240,28 @@ export default function Studio() {
                                                     className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors"
                                                 />
                                             </div>
+
+                                            <div>
+                                                <label className="text-xs font-medium text-muted mb-1 block">Algorithm</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={algorithm}
+                                                        onChange={(e) => setAlgorithm(e.target.value)}
+                                                        className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors appearance-none cursor-pointer"
+                                                    >
+                                                        <option value="random_forest">Random Forest</option>
+                                                        <option value="xgboost">XGBoost</option>
+                                                        <option value="logistic_regression">Logistic Regression</option>
+                                                        <option value="decision_tree">Decision Tree</option>
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-muted">
+                                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                         </div>
                                         <button
                                             onClick={handleTrainModel}
@@ -258,8 +278,8 @@ export default function Studio() {
                 )}
             </AnimatePresence>
 
-            {/* Sidebar */}
-            <aside className="w-64 border-r border-white/10 bg-surface/50 hidden md:flex flex-col">
+            {/* ✅ CHANGED: Sidebar is now frosted glass (bg-black/40 backdrop-blur-md) */}
+            <aside className="w-64 border-r border-white/10 bg-black/40 backdrop-blur-md hidden md:flex flex-col">
                 <div className="p-6 border-b border-white/10">
                     <div className="flex items-center space-x-3">
                         <Database className="h-6 w-6 text-accent" />
@@ -289,7 +309,8 @@ export default function Studio() {
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="h-20 border-b border-white/10 flex items-center justify-between px-8 bg-background/80 backdrop-blur-md z-10">
+                {/* ✅ CHANGED: Header is now frosted glass (bg-black/40 backdrop-blur-md) */}
+                <header className="h-20 border-b border-white/10 flex items-center justify-between px-8 bg-black/40 backdrop-blur-md z-10">
                     <div>
                         <h1 className="text-xl font-medium">Model Registry</h1>
                         <p className="text-xs text-muted mt-1">Manage and monitor active endpoints</p>
@@ -297,7 +318,6 @@ export default function Studio() {
                     <div className="flex items-center space-x-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                            {/* WIRED UP THE INPUT HERE */}
                             <input
                                 type="text"
                                 placeholder="Search models..."
@@ -324,7 +344,6 @@ export default function Studio() {
                         </div>
                     )}
 
-                    {/* EMPTY STATE FOR SEARCH */}
                     {!isLoading && models.length > 0 && filteredModels.length === 0 && (
                         <div className="flex flex-col items-center justify-center h-64 text-center">
                             <Search className="h-8 w-8 text-muted/30 mb-3" />
@@ -332,7 +351,6 @@ export default function Studio() {
                         </div>
                     )}
 
-                    {/* MAPPED OVER filteredModels INSTEAD OF models */}
                     {!isLoading && filteredModels.length > 0 && (
                         <div className={`grid gap-6 ${view === 'grid' ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1'}`}>
                             {filteredModels.map((model) => (
