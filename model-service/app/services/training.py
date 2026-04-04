@@ -156,6 +156,45 @@ def train_model(
             "test_size": len(X_test),
         }
 
+    # ==========================================
+    # PHASE 1: EXTRACT FEATURE IMPORTANCES
+    # ==========================================
+    model_step = pipeline.named_steps["model"]
+    feature_names = list(X.columns)
+    
+    try:
+        if hasattr(model_step, "feature_importances_"):
+            # Tree-based models (Random Forest, XGBoost)
+            weights = model_step.feature_importances_
+        elif hasattr(model_step, "coef_"):
+            # Linear models (Logistic/Linear Regression)
+            # coef_ can be multi-dimensional for multi-class, so we take the mean of the absolute values
+            coef = np.abs(model_step.coef_)
+            weights = np.mean(coef, axis=0) if coef.ndim > 1 else np.squeeze(coef)
+        else:
+            weights = np.zeros(len(feature_names))
+            
+        # Ensure dimensions match before saving
+        if len(weights) == len(feature_names):
+            importance_dict = {feature_names[i]: float(weights[i]) for i in range(len(feature_names))}
+            # Sort by highest importance descending
+            metrics["feature_importances"] = dict(sorted(importance_dict.items(), key=lambda item: item[1], reverse=True))
+        else:
+            metrics["feature_importances"] = {}
+    except Exception as e:
+        logger.warning(f"Failed to extract feature importances: {e}")
+        metrics["feature_importances"] = {}
+
+    # ==========================================
+    # PHASE 1: EXTRACT CLASS LABELS (For UI Donut Chart)
+    # ==========================================
+    if task_type == "classification":
+        if target_encoder is not None:
+            metrics["class_labels"] = [str(c) for c in target_encoder.classes_]
+        else:
+            # If no target_encoder was used, grab unique values directly from the original dataframe
+            metrics["class_labels"] = [str(c) for c in np.unique(df[target_column])]
+
     os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
     model_artifact = {
         "pipeline": pipeline,

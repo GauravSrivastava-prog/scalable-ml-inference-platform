@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Dataset constraints
-    max_dataset_size_mb: int = 20
-    max_dataset_rows: int = 100_000
+    max_dataset_size_mb: int = 100
+    max_dataset_rows: int = 1_000_000
 
     model_config = SettingsConfigDict(
         env_file=".env",

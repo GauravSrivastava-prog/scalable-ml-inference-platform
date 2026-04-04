@@ -1,0 +1,15 @@
+node_modules/
+venv/
+__pycache__/
+.git/
+.env
+*.pyc
+.DS_Store
+inference-studio/
+*.csv
+docker-compose*.yml
+*.md
+locustfile.py
+.env.example
+.gitignore
+*.egg-info/

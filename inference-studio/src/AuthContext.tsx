@@ -23,15 +23,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const login = async (email: string, password: string) => {
         try {
-            // Swapped back to standard JSON as per your backend's contract!
-            const response = await fetch('http://localhost:9000/api/v1/auth/login', {
+            const response = await apiFetch('/api/v1/auth/login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
             });
 
             if (!response.ok) {
-                // If it's a 422 or 401, throw to the catch block
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 

@@ -89,14 +89,8 @@ export default function Studio() {
         formData.append('file', selectedFile);
 
         try {
-            const token = localStorage.getItem('access_token');
-            if (!token) throw new Error("No access token found in browser storage.");
-
-            const response = await fetch('http://localhost:9000/api/v1/models/upload-dataset', {
+            const response = await apiFetch('/api/v1/models/upload-dataset', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
                 body: formData
             });
 
@@ -133,7 +127,11 @@ export default function Studio() {
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error('Training failed');
+            // ✅ PROFESSIONAL POLISH: Catch the exact backend detail
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Training failed due to invalid parameters.');
+            }
 
             setIsModalOpen(false);
             setModalStep('upload');
@@ -144,9 +142,10 @@ export default function Studio() {
 
             await fetchModels();
 
-        } catch (err) {
-            console.error(err);
-            alert("Failed to train model.");
+        } catch (err: any) {
+            console.error("Training Pipeline Error:", err);
+            // ✅ PROFESSIONAL POLISH: Display the exact backend reasoning to the user
+            alert(`Training Error: ${err.message}`);
         } finally {
             setIsProcessing(false);
         }

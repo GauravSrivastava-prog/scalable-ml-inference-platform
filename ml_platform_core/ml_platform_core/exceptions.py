@@ -52,7 +52,7 @@ class TrainingError(MLPlatformError):
     """Raised when model training fails."""
 
     def __init__(self, message: str = "Model training failed"):
-        super().__init__(message, status_code=500)
+        super().__init__(message, status_code=422)
 
 
 # ---------------------------------------------------------------------------
