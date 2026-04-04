@@ -1,4 +1,4 @@
-export const API_BASE = "http://localhost:9000"; // Pointing to our NGINX Gateway
+export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:9000";
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     const token = localStorage.getItem("access_token");

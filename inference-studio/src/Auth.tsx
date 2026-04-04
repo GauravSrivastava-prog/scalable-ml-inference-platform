@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, ArrowRight, Cpu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { apiFetch } from './api';
 
 
 export default function Auth() {
@@ -35,9 +36,8 @@ export default function Auth() {
                 }
             } else {
                 // --- REGISTRATION FLOW ---
-                const response = await fetch('http://localhost:9000/api/v1/auth/register', {
+                const response = await apiFetch('/api/v1/auth/register', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, username, password }),
                 });
 

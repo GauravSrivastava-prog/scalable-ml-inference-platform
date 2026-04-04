@@ -19,14 +19,26 @@ def create_app() -> FastAPI:
         title="ML Platform — Model Service",
         version="1.0.0",
         docs_url="/docs",
-        redoc_url="/redoc",
+        redoc_url="/redoc"
     )
 
     application.add_exception_handler(MLPlatformError, ml_platform_exception_handler)
+    
+    # ✅ FIX 1: Clean prefix (No trailing slash!)
     application.include_router(models_router, prefix="/api/v1/models", tags=["models"])
+
+    # ✅ FIX 2: Middleware to bridge the gap with Nginx
+    @application.middleware("http")
+    async def fix_nginx_trailing_slash(request, call_next):
+        path = request.url.path
+        # If Nginx sends /api/v1/models/, we internally treat it as /api/v1/models
+        if path.endswith("/") and path.startswith("/api/v1/models") and len(path) > 15:
+            request.scope["path"] = path.rstrip("/")
+        return await call_next(request)
 
     @application.get("/health", tags=["health"])
     async def health_check():
+        # ... (keep your existing health check code here) ...
         try:
             async with async_session_factory() as session:
                 await session.execute(text("SELECT 1"))
@@ -38,6 +50,7 @@ def create_app() -> FastAPI:
                 status_code=503,
                 content={"status": "unhealthy", "database": "disconnected"},
             )
+
     Instrumentator().instrument(application).expose(application)
     return application
 

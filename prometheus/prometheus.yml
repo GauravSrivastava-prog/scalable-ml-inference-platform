@@ -2,13 +2,23 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'ml-inference-platform'
+  # ---------------------------------------------------------------------------
+  # Job 1: Static targets for single-instance services
+  # ---------------------------------------------------------------------------
+  - job_name: 'ml-core-services'
     metrics_path: '/metrics'
     static_configs:
       - targets: 
         - 'auth-service:8000'
         - 'model-service:8000'
-        - 'prediction-service:8000'
-        - 'prediction-service-1:8000'
-        - 'prediction-service-2:8000'
-        - 'prediction-service-3:8000'
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Dynamic DNS discovery for the load-balanced replicas
+  # ---------------------------------------------------------------------------
+  - job_name: 'prediction-workers'
+    metrics_path: '/metrics'
+    # Automatically discovers all 4 replicas defined by 'deploy: replicas: 4'
+    dns_sd_configs:
+      - names: ['prediction-service']
+        type: 'A'
+        port: 8000
