@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Plus, Search, Activity, Box, Clock, List, UploadCloud, X, ArrowRight, Trash2, CheckCircle2 } from 'lucide-react';
+import { Database, Plus, Search, Activity, Box, Clock, List, UploadCloud, X, Trash2, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from './api';
 import { useAuth } from './AuthContext';
@@ -22,11 +22,11 @@ interface BackendModel {
 export default function Studio() {
     const navigate = useNavigate();
     const { logout } = useAuth();
-    const [view, setView] = useState<'grid' | 'list'>('grid');
+    const [view] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
     const [models, setModels] = useState<BackendModel[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    // const [error, setError] = useState<string | null>(null);
 
     // --- MODAL STATE ---
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,7 +48,7 @@ export default function Studio() {
             setModels(data);
         } catch (err) {
             console.error("Failed to fetch models:", err);
-            setError('Failed to load models from the cluster.');
+            // setError('Failed to load models from the cluster.');
         } finally {
             setIsLoading(false);
         }
