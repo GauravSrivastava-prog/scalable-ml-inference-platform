@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Activity, Zap, Server, Cpu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
