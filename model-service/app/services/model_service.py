@@ -29,7 +29,14 @@ from app.services.training import train_model
 
 logger = logging.getLogger(__name__)
 
-STORAGE_BASE = "/app/storage"
+# --- THE FIX: DYNAMIC PATH GENERATION ---
+# Get the directory where this script (model_service.py) lives
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Go up two levels (app -> services -> root) to get the base directory
+BASE_DIR = os.path.dirname(os.path.dirname(CURRENT_DIR))
+# Safely join them to create a storage folder inside the project workspace
+STORAGE_BASE = os.path.join(BASE_DIR, "storage")
+# ----------------------------------------
 
 
 class ModelService:
@@ -183,10 +190,10 @@ class ModelService:
             model_id=model.id,
             name=model.name,
             version=model.version,
-    algorithm=model.algorithm,
-    status=model.status,
-    metrics=model.metrics,
-)
+            algorithm=model.algorithm,
+            status=model.status,
+            metrics=model.metrics,
+        )
 
     # ------------------------------------------------------------------
     # Model listing / retrieval
