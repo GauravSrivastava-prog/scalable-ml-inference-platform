@@ -1,5 +1,6 @@
 import redis.asyncio as redis
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -7,10 +8,12 @@ class RedisPredictionCache:
     def __init__(self):
         self.client = None
 
-    async def connect(self, url: str = "redis://redis:6379/0"):
+    async def connect(self, url: str = None):
         """Initialize the Redis connection pool."""
-        # decode_responses=True means Redis returns strings, not raw bytes
-        self.client = redis.from_url(url, decode_responses=True) 
+        # Check the environment exactly when we need to connect
+        final_url = url or os.getenv("REDIS_URL", "redis://redis:6379/0")
+        
+        self.client = redis.from_url(final_url, decode_responses=True) 
         logger.info("Connected to Redis Prediction Cache (Tier 2).")
 
     async def close(self):
