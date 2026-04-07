@@ -6,13 +6,15 @@ import time
 import uuid
 import json
 import hashlib
+import io
+import joblib
 from typing import Any
 from uuid import UUID
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from prometheus_client import Counter, Histogram
-from ml_platform_core.database import async_session_factory
+from supabase import create_client
 
 # --- FASTAPI & DB IMPORTS ADDED FOR BACKGROUND TASKS ---
 from fastapi import BackgroundTasks
@@ -55,12 +57,12 @@ from ml_platform_core.models.user import User
 
 logger = logging.getLogger(__name__)
 
-STORAGE_BASE = "/app/storage"
 MAX_BATCH_SIZE = 100
 
 
 class PredictionService:
     """Stateless service for inference operations."""
+    
     @staticmethod
     async def _save_batch_to_ledger_background(
         model_id: UUID, 
@@ -70,9 +72,7 @@ class PredictionService:
         latency_ms: float
     ):
         """Silently saves successful predictions to PostgreSQL in the background."""
-        # 1. We wrap the ENTIRE function in a try/except to catch connection errors
         try:
-            # 2. Open a completely isolated database session specifically for this thread
             async with async_session_factory() as session:
                 prediction_records = []
                 for idx, item in enumerate(predictions):
@@ -93,8 +93,8 @@ class PredictionService:
                     logger.info(f"[LEDGER] Background Task: Successfully wrote {len(prediction_records)} records to Postgres.")
                     
         except Exception as e:
-            # 3. Explicitly log the error with traceback so it doesn't die silently
             logger.error(f"[LEDGER ERROR] Background Task Failed: {str(e)}", exc_info=True)
+
     @staticmethod
     async def predict(
         db: AsyncSession,
@@ -115,7 +115,6 @@ class PredictionService:
                     logger.info("[TIER 2 HIT - REDIS] Bypassing ML Model")
                     cached_data = json.loads(cached_result)
                     
-                    # Record Prometheus cache hit
                     INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="cache_hit", type="single").inc()
                     
                     return PredictionResponse(**cached_data)
@@ -139,16 +138,23 @@ class PredictionService:
                 f"Model is not ready for inference (status: {model.status})"
             )
 
-        model_path = os.path.join(STORAGE_BASE, model.file_path)
-
-        if not os.path.isfile(model_path):
-            raise ResourceNotFoundError("Model file not found on disk")
-
         start_time = time.perf_counter()
 
         try:
-            # --- TIER 1 CACHE: LOAD/FETCH MODEL FROM LOCAL RAM ---
-            model_artifact = await model_cache.get_model(model_path)
+            # --- NEW SUPABASE DOWNLOAD LOGIC ---
+            if not model.file_path:
+                raise ResourceNotFoundError("Model file path missing from DB")
+
+            url: str = os.environ.get("SUPABASE_URL")
+            key: str = os.environ.get("SUPABASE_KEY")
+            supabase = create_client(url, key)
+
+            # Download raw bytes from Supabase
+            file_bytes = supabase.storage.from_("models").download(model.file_path)
+            
+            # Load Scikit-Learn model directly from memory (bypassing local cache)
+            model_artifact = joblib.load(io.BytesIO(file_bytes))
+            # -----------------------------------
 
             pipeline = model_artifact["pipeline"]
             feature_columns: list[str] = model_artifact["feature_columns"]
@@ -282,7 +288,7 @@ class PredictionService:
         db: AsyncSession,
         user: User,
         request: BatchPredictionRequest,
-        background_tasks: BackgroundTasks = None # <-- Accepts the BackgroundTasks object
+        background_tasks: BackgroundTasks = None
     ) -> BatchPredictionResponse:
 
         if len(request.input_data) > MAX_BATCH_SIZE:
@@ -302,11 +308,7 @@ class PredictionService:
                     logger.info(f"[TIER 2 HIT - REDIS] Bypassing ML Model for Batch of {len(request.input_data)}")
                     cached_data = json.loads(cached_result)
                     
-                    # Record Prometheus cache hit for the entire batch size
                     INFERENCE_REQUESTS.labels(model_id=str(request.model_id), status="cache_hit", type="batch").inc(len(request.input_data))
-                    
-                    # We return early here! The background task is NEVER triggered for a cache hit.
-                    # This satisfies Antigravity's Ledger Philosophy rule.
                     return BatchPredictionResponse(**cached_data)
             except Exception as e:
                 logger.warning(f"Redis fetch failed for batch, falling back to ML model: {e}")
@@ -330,13 +332,20 @@ class PredictionService:
                 f"Model is not ready for inference (status: {model.status})"
             )
 
-        model_path = os.path.join(STORAGE_BASE, model.file_path)
+        # --- NEW SUPABASE DOWNLOAD LOGIC ---
+        if not model.file_path:
+            raise ResourceNotFoundError("Model file path missing from DB")
 
-        if not os.path.isfile(model_path):
-            raise ResourceNotFoundError("Model file not found on disk")
+        try:
+            url: str = os.environ.get("SUPABASE_URL")
+            key: str = os.environ.get("SUPABASE_KEY")
+            supabase = create_client(url, key)
 
-        # --- TIER 1 CACHE: LOAD/FETCH MODEL FROM LOCAL RAM ---
-        model_artifact = await model_cache.get_model(model_path)
+            file_bytes = supabase.storage.from_("models").download(model.file_path)
+            model_artifact = joblib.load(io.BytesIO(file_bytes))
+        except Exception as e:
+            raise ResourceNotFoundError(f"Cloud storage error: {str(e)}")
+        # -----------------------------------
 
         pipeline = model_artifact["pipeline"]
         feature_columns: list[str] = model_artifact["feature_columns"]
@@ -449,7 +458,6 @@ class PredictionService:
                 logger.warning(f"Redis batch save failed: {e}")
         # -------------------------------------------
 
-        # --- FIRE AND FORGET THE POSTGRES DATABASE WRITE! ---
         if background_tasks:
             background_tasks.add_task(
                 PredictionService._save_batch_to_ledger_background,
@@ -461,7 +469,6 @@ class PredictionService:
             )
         else:
             logger.warning("[LEDGER] No background_tasks object provided. Skipping ledger write.")
-        # ----------------------------------------------------
 
         return response
 
