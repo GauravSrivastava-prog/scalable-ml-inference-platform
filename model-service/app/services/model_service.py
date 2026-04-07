@@ -3,7 +3,7 @@
 import logging
 import os
 import uuid
-
+from supabase import create_client
 import pandas as pd
 from fastapi import UploadFile
 from sqlalchemy import func, select
@@ -29,7 +29,7 @@ from app.services.training import train_model
 
 logger = logging.getLogger(__name__)
 
-# --- THE FIX: DYNAMIC PATH GENERATION ---
+# --- DYNAMIC PATH GENERATION ---
 # Get the directory where this script (model_service.py) lives
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Go up two levels (app -> services -> root) to get the base directory
@@ -171,10 +171,30 @@ class ModelService:
                 model_save_path=model_file_path,
                 training_params=data.training_params,
             )
+            
+            # --- NEW SUPABASE UPLOAD LOGIC ---
+            url: str = os.environ.get("SUPABASE_URL")
+            key: str = os.environ.get("SUPABASE_KEY")
+            supabase = create_client(url, key)
+            
+            # Cloud path: e.g., user_id/model_name/v1.joblib
+            cloud_path = f"{user.id}/{data.name}/v{next_version}.joblib"
+            
+            # Upload to Supabase
+            with open(model_file_path, "rb") as f:
+                supabase.storage.from_("models").upload(
+                    file=f,
+                    path=cloud_path,
+                    file_options={"content-type": "application/octet-stream"}
+                )
+            
             model.status = "ready"
             model.metrics = metrics
+            model.file_path = cloud_path  # Save cloud path to DB
+            # ---------------------------------
+            
             logger.info(
-                f"Model trained: {model.name} v{model.version}, metrics={metrics}"
+                f"Model trained and uploaded to Supabase: {model.name} v{model.version}, metrics={metrics}"
             )
         except Exception as exc:
             model.status = "failed"
