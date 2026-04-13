@@ -17,4 +17,4 @@ prometheus-client==0.19.0
 redis>=5.0.1
 httpx
 xgboost>=2.0.0
-supabase==2.3.4
+supabase
