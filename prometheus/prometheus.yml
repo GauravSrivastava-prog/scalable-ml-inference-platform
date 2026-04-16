@@ -1,24 +1,16 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
-  # ---------------------------------------------------------------------------
-  # Job 1: Static targets for single-instance services
-  # ---------------------------------------------------------------------------
-  - job_name: 'ml-core-services'
-    metrics_path: '/metrics'
+  - job_name: "ml-cloud-services"
+    scheme: https
     static_configs:
       - targets: 
-        - 'auth-service:8000'
-        - 'model-service:8000'
-
-  # ---------------------------------------------------------------------------
-  # Job 2: Dynamic DNS discovery for the load-balanced replicas
-  # ---------------------------------------------------------------------------
-  - job_name: 'prediction-workers'
-    metrics_path: '/metrics'
-    # Automatically discovers all 4 replicas defined by 'deploy: replicas: 4'
-    dns_sd_configs:
-      - names: ['prediction-service']
-        type: 'A'
-        port: 8000
+        # Your live Prediction Service
+        - "ml-prediction-service-m7xo.onrender.com"
+        
+        # You can uncomment and add your other live Render URLs here 
+        # once you want to monitor them as well!
+        # - "ml-auth-service-xxxx.onrender.com"
+        # - "ml-model-service-xxxx.onrender.com"
