@@ -4,7 +4,6 @@ import os
 from uuid import UUID
 import httpx
 import logging
-# Added BackgroundTasks here
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from ml_platform_core.schemas.prediction import BatchPredictionRequest, BatchPredictionResponse
@@ -34,10 +33,6 @@ async def get_live_telemetry():
     base_url = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
     prometheus_url = f"{base_url}/api/v1/query"
     
-    # Grafana Cloud Basic Auth Credentials
-    prom_user = os.getenv("PROMETHEUS_USER")
-    prom_pass = os.getenv("PROMETHEUS_PASS")
-    
     telemetry = {
         "cache_hit_rate": 0.0,
         "p95_latency_ms": 0.0,
@@ -47,10 +42,8 @@ async def get_live_telemetry():
     }
 
     try:
-        # Use Basic Auth if credentials exist in the environment
-        auth = (prom_user, prom_pass) if prom_user and prom_pass else None
-        
-        async with httpx.AsyncClient(auth=auth) as client:
+        # Clean, unauthenticated request to your own Render Prometheus instance
+        async with httpx.AsyncClient() as client:
             # 1. Get Total Predictions
             res_total = await client.get(prometheus_url, params={'query': 'sum(inference_requests_total)'})
             if res_total.status_code == 200 and res_total.json()['data']['result']:
@@ -83,7 +76,7 @@ async def get_live_telemetry():
 @router.post("/batch", response_model=BatchPredictionResponse)
 async def batch_predict(
     request: BatchPredictionRequest,
-    background_tasks: BackgroundTasks, # <-- Inject BackgroundTasks
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -91,7 +84,7 @@ async def batch_predict(
         db=db,
         user=current_user,
         request=request,
-        background_tasks=background_tasks # <-- Pass down to service
+        background_tasks=background_tasks
     )
 
 
