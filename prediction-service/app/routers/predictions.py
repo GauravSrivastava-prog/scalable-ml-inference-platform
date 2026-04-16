@@ -1,5 +1,6 @@
 """Predictions router — run inference, list/get predictions."""
 
+import os
 from uuid import UUID
 import httpx
 import logging
@@ -28,9 +29,15 @@ router = APIRouter()
 @router.get("/telemetry/live")
 async def get_live_telemetry():
     """Proxies requests to Prometheus and returns formatted metrics for the UI."""
-    prometheus_url = "http://prometheus:9090/api/v1/query"
     
-    # We use a default payload in case Prometheus is warming up
+    # Read from Render Environment, fallback to local Docker
+    base_url = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
+    prometheus_url = f"{base_url}/api/v1/query"
+    
+    # Grafana Cloud Basic Auth Credentials
+    prom_user = os.getenv("PROMETHEUS_USER")
+    prom_pass = os.getenv("PROMETHEUS_PASS")
+    
     telemetry = {
         "cache_hit_rate": 0.0,
         "p95_latency_ms": 0.0,
@@ -40,26 +47,29 @@ async def get_live_telemetry():
     }
 
     try:
-        async with httpx.AsyncClient() as client:
+        # Use Basic Auth if credentials exist in the environment
+        auth = (prom_user, prom_pass) if prom_user and prom_pass else None
+        
+        async with httpx.AsyncClient(auth=auth) as client:
             # 1. Get Total Predictions
             res_total = await client.get(prometheus_url, params={'query': 'sum(inference_requests_total)'})
-            if res_total.json()['data']['result']:
+            if res_total.status_code == 200 and res_total.json()['data']['result']:
                 telemetry["total_predictions"] = int(float(res_total.json()['data']['result'][0]['value'][1]))
 
             # 2. Get P95 Latency (in ms)
             res_lat = await client.get(prometheus_url, params={'query': 'histogram_quantile(0.95, sum(rate(inference_latency_seconds_bucket[5m])) by (le)) * 1000'})
-            if res_lat.json()['data']['result']:
+            if res_lat.status_code == 200 and res_lat.json()['data']['result']:
                 val = res_lat.json()['data']['result'][0]['value'][1]
                 telemetry["p95_latency_ms"] = round(float(val), 2) if val != 'NaN' else 0.0
 
             # 3. Get Current Traffic (Requests Per Second)
             res_rps = await client.get(prometheus_url, params={'query': 'sum(rate(http_requests_total[1m]))'})
-            if res_rps.json()['data']['result']:
+            if res_rps.status_code == 200 and res_rps.json()['data']['result']:
                 telemetry["current_rps"] = round(float(res_rps.json()['data']['result'][0]['value'][1]), 2)
 
             # 4. Get Cache Hit Rate
             res_cache = await client.get(prometheus_url, params={'query': '(sum(inference_requests_total{status="cache_hit"}) / sum(inference_requests_total)) * 100'})
-            if res_cache.json()['data']['result']:
+            if res_cache.status_code == 200 and res_cache.json()['data']['result']:
                 val = res_cache.json()['data']['result'][0]['value'][1]
                 telemetry["cache_hit_rate"] = round(float(val), 1) if val != 'NaN' else 0.0
 
