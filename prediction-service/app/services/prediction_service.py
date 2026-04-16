@@ -21,6 +21,10 @@ from fastapi import BackgroundTasks
 from ml_platform_core.database import async_session_factory 
 # -------------------------------------------------------
 
+# --- TIER 1 RAM CACHE ---
+IN_MEMORY_MODEL_CACHE: dict[str, Any] = {}
+# ------------------------
+
 # --- PROMETHEUS METRICS DEFINITIONS ---
 INFERENCE_REQUESTS = Counter(
     "inference_requests_total",
@@ -141,20 +145,25 @@ class PredictionService:
         start_time = time.perf_counter()
 
         try:
-            # --- SUPABASE DOWNLOAD LOGIC ---
+            # --- SUPABASE WITH IN-MEMORY CACHE ---
             if not model.file_path:
                 raise ResourceNotFoundError("Model file path missing from DB")
 
-            url: str = os.environ.get("SUPABASE_URL")
-            key: str = os.environ.get("SUPABASE_KEY")
-            supabase = create_client(url, key)
+            if model.file_path in IN_MEMORY_MODEL_CACHE:
+                logger.info("[TIER 1 HIT] Loading model instantly from RAM")
+                model_artifact = IN_MEMORY_MODEL_CACHE[model.file_path]
+            else:
+                logger.info("[TIER 1 MISS] Downloading model from Supabase...")
+                url: str = os.environ.get("SUPABASE_URL")
+                key: str = os.environ.get("SUPABASE_KEY")
+                supabase = create_client(url, key)
 
-            # Download raw bytes from Supabase
-            file_bytes = supabase.storage.from_("models").download(model.file_path)
-            
-            # Load Scikit-Learn model directly from memory (bypassing local cache)
-            model_artifact = joblib.load(io.BytesIO(file_bytes))
-            # -----------------------------------
+                file_bytes = supabase.storage.from_("models").download(model.file_path)
+                model_artifact = joblib.load(io.BytesIO(file_bytes))
+                
+                # Save it to RAM so we never have to download it again
+                IN_MEMORY_MODEL_CACHE[model.file_path] = model_artifact
+            # -------------------------------------
 
             pipeline = model_artifact["pipeline"]
             feature_columns: list[str] = model_artifact["feature_columns"]
@@ -336,20 +345,28 @@ class PredictionService:
                 f"Model is not ready for inference (status: {model.status})"
             )
 
-        # --- SUPABASE DOWNLOAD LOGIC ---
+        # --- SUPABASE WITH IN-MEMORY CACHE ---
         if not model.file_path:
             raise ResourceNotFoundError("Model file path missing from DB")
 
         try:
-            url: str = os.environ.get("SUPABASE_URL")
-            key: str = os.environ.get("SUPABASE_KEY")
-            supabase = create_client(url, key)
+            if model.file_path in IN_MEMORY_MODEL_CACHE:
+                logger.info("[TIER 1 HIT] Loading model instantly from RAM")
+                model_artifact = IN_MEMORY_MODEL_CACHE[model.file_path]
+            else:
+                logger.info("[TIER 1 MISS] Downloading model from Supabase...")
+                url: str = os.environ.get("SUPABASE_URL")
+                key: str = os.environ.get("SUPABASE_KEY")
+                supabase = create_client(url, key)
 
-            file_bytes = supabase.storage.from_("models").download(model.file_path)
-            model_artifact = joblib.load(io.BytesIO(file_bytes))
+                file_bytes = supabase.storage.from_("models").download(model.file_path)
+                model_artifact = joblib.load(io.BytesIO(file_bytes))
+                
+                IN_MEMORY_MODEL_CACHE[model.file_path] = model_artifact
+                
         except Exception as e:
             raise ResourceNotFoundError(f"Cloud storage error: {str(e)}")
-        # -----------------------------------
+        # -------------------------------------
 
         pipeline = model_artifact["pipeline"]
         feature_columns: list[str] = model_artifact["feature_columns"]
