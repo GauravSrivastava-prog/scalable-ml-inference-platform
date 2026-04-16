@@ -289,7 +289,7 @@ export default function Canvas() {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie data={probData} cx="50%" cy="50%" innerRadius="60%" outerRadius="80%" paddingAngle={2} dataKey="value" animationDuration={800}>
-                                                {probData.map((index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                                {probData.map((entry: any, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                             </Pie>
                                             <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? `${value.toFixed(1)}%` : value} contentStyle={{ backgroundColor: '#111', border: 'none', borderRadius: '8px', fontSize: '12px' }} />
                                         </PieChart>
