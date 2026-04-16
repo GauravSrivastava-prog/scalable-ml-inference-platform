@@ -181,17 +181,14 @@ class PredictionService:
             raw_prediction = pipeline.predict(df)
             pred_value: Any = raw_prediction[0]
 
-            # --- PROBABILITY DICTIONARY MAPPING FIX ---
+            # --- REVERT TO ARRAY ---
             probabilities = None
             try:
                 proba = pipeline.predict_proba(df)
-                raw_classes = pipeline.classes_
-                class_labels = target_encoder.inverse_transform(raw_classes) if target_encoder else raw_classes
-                # Create dictionary mapping label to probability
-                probabilities = {str(label): float(val) for label, val in zip(class_labels, proba[0])}
+                probabilities = proba[0].tolist()
             except Exception:
                 probabilities = None
-            # ------------------------------------------
+            # -----------------------
 
             if hasattr(pred_value, "item"):
                 pred_value = pred_value.item()
@@ -231,8 +228,7 @@ class PredictionService:
         INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="completed", type="single").inc()
         
         if probabilities:
-            # Ensure we only log the numeric values to prometheus
-            for idx, prob in enumerate(probabilities.values()):
+            for idx, prob in enumerate(probabilities):
                 MODEL_PROBABILITIES.labels(model_id=str(data.model_id), class_index=str(idx)).observe(prob)
 
         prediction_record = Prediction(
@@ -403,17 +399,13 @@ class PredictionService:
             try:
                 raw_predictions = pipeline.predict(df)
 
-                # --- PROBABILITY DICTIONARY MAPPING FIX (BATCH) ---
+                # --- REVERT TO ARRAY (BATCH) ---
                 probabilities = None
-                class_labels = None
                 try:
                     probabilities = pipeline.predict_proba(df)
-                    raw_classes = pipeline.classes_
-                    class_labels = target_encoder.inverse_transform(raw_classes) if target_encoder else raw_classes
                 except Exception:
                     probabilities = None
-                    class_labels = None
-                # --------------------------------------------------
+                # -------------------------------
 
                 for i, idx in enumerate(valid_indices):
                     pred_value: Any = raw_predictions[i]
@@ -425,8 +417,8 @@ class PredictionService:
                         )[0]
 
                     proba = None
-                    if probabilities is not None and class_labels is not None:
-                        proba = {str(label): float(val) for label, val in zip(class_labels, probabilities[i])}
+                    if probabilities is not None:
+                        proba = probabilities[i].tolist()
 
                     predictions[idx] = BatchPredictionItem(
                         result=pred_value,
@@ -456,7 +448,7 @@ class PredictionService:
 
         for item in predictions:
             if item and item.probabilities:
-                for idx, prob in enumerate(item.probabilities.values()):
+                for idx, prob in enumerate(item.probabilities):
                     MODEL_PROBABILITIES.labels(model_id=str(request.model_id), class_index=str(idx)).observe(prob)
 
         logger.info(
