@@ -16,7 +16,7 @@ class PredictionResponse(BaseModel):
     prediction_id: UUID
     result: Any
     latency_ms: float
-    probabilities: dict[str, float] | list[float] | None = None
+    probabilities: list[float] | None = None
 
 
 class PredictionDetailResponse(BaseModel):
@@ -48,7 +48,7 @@ class BatchPredictionRequest(BaseModel):
 
 class BatchPredictionItem(BaseModel):
     result: Any | None = None
-    probabilities: dict[str, float] | list[float] | None = None
+    probabilities: list[float] | None = None
     error: str | None = None
 
 
