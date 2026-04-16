@@ -7,13 +7,6 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
-class Prediction(Base):
-    __tablename__ = "predictions"
-    
-    __mapper_args__ = {
-        "confirm_deleted_rows": False
-    }
-
 class PredictionRequest(BaseModel):
     model_id: UUID
     input_data: dict[str, Any]
@@ -47,6 +40,7 @@ class PredictionListResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class BatchPredictionRequest(BaseModel):
     model_id: UUID
