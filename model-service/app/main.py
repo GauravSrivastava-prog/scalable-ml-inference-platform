@@ -7,7 +7,7 @@ from ml_platform_core.config import get_settings
 from ml_platform_core.database import async_session_factory
 from ml_platform_core.exceptions import MLPlatformError, ml_platform_exception_handler
 from ml_platform_core.logging import setup_logging
-
+from fastapi.middleware.cors import CORSMiddleware
 from app.routers.models import router as models_router
 
 settings = get_settings()
@@ -22,7 +22,16 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc"
     )
-
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173", 
+            "https://scalable-ml-inference-platform-6j5m.vercel.app"
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     application.add_exception_handler(MLPlatformError, ml_platform_exception_handler)
     
     # ✅ FIX 1: Clean prefix (No trailing slash!)
