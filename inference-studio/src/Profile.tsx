@@ -80,39 +80,45 @@ export default function Profile() {
             {/* Algorithm Bar Chart Section */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-surface/20 border border-white/10 rounded-2xl p-8 flex-1 min-h-[400px] flex flex-col"
+                className="bg-surface/20 border border-white/10 rounded-2xl p-8 mt-6"
             >
-                <h3 className="text-lg font-medium mb-8 flex items-center gap-2 shrink-0">
+                <h3 className="text-lg font-medium mb-6 flex items-center gap-2">
                     <Award size={18} className="text-accent" /> Algorithm Utilization Matrix
                 </h3>
 
-                {/* FIX: Explicit min-height forces Recharts to actually render */}
-                <div className="flex-1 w-full relative min-h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={stats?.algorithm_usage} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                            <XAxis
-                                dataKey="algorithm"
-                                tickFormatter={formatAlgoName}
-                                tick={{ fill: '#a3a3a3', fontSize: 12 }}
-                                axisLine={false}
-                                tickLine={false}
-                                dy={10}
-                            />
-                            <YAxis
-                                tick={{ fill: '#a3a3a3', fontSize: 12 }}
-                                axisLine={false}
-                                tickLine={false}
-                                allowDecimals={false}
-                            />
-                            <Tooltip
-                                cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                                contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                                labelFormatter={(label) => formatAlgoName(label as string)}
-                            />
-                            <Bar dataKey="count" name="Models Trained" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={60} />
-                        </BarChart>
-                    </ResponsiveContainer>
+                {/* FIX: Hardcoded height wrapper (h-80 = 320px) removes all Recharts measuring ambiguity */}
+                <div className="w-full h-80">
+                    {stats?.algorithm_usage && stats.algorithm_usage.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats.algorithm_usage} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis
+                                    dataKey="algorithm"
+                                    tickFormatter={formatAlgoName}
+                                    tick={{ fill: '#a3a3a3', fontSize: 12 }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    dy={10}
+                                />
+                                <YAxis
+                                    tick={{ fill: '#a3a3a3', fontSize: 12 }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    allowDecimals={false}
+                                />
+                                <Tooltip
+                                    cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                                    contentStyle={{ backgroundColor: '#121212', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                                    labelFormatter={(label) => formatAlgoName(label as string)}
+                                />
+                                <Bar dataKey="count" name="Models Trained" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted/50 border border-dashed border-white/10 rounded-xl">
+                            Awaiting algorithm telemetry...
+                        </div>
+                    )}
                 </div>
             </motion.div>
         </div>
