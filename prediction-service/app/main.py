@@ -16,6 +16,7 @@ from ml_platform_core.exceptions import MLPlatformError, ml_platform_exception_h
 from ml_platform_core.logging import setup_logging
 from app.core.sync_worker import flush_telemetry_to_db
 from app.routers.predictions import router as predictions_router
+from fastapi.middleware.cors import CORSMiddleware
 
 settings = get_settings()
 logger = setup_logging("prediction-service", settings.log_level)
