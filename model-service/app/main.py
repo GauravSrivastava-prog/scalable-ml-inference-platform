@@ -16,7 +16,8 @@ logger = setup_logging("model-service", settings.log_level)
 
 def create_app() -> FastAPI:
     application = FastAPI(
-        title="ML Platform — Model Service",
+        title="Inference Studio - Model Service",
+        description="Train. Serve. Scale.",
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc"

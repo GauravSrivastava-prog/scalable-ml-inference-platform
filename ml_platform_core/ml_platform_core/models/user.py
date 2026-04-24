@@ -42,6 +42,9 @@ class User(Base):
     predictions: Mapped[list["Prediction"]] = relationship(  # noqa: F821
         "Prediction", back_populates="user", cascade="all, delete-orphan", lazy="selectin"
     )
-
+    # NEW: The bidirectional link for the analytics table
+    analytics: Mapped["UserAnalytics"] = relationship(
+        "UserAnalytics", back_populates="user", uselist=False, lazy="selectin"
+    )
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email}>"
