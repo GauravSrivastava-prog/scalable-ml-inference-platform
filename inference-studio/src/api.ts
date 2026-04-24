@@ -1,22 +1,27 @@
-export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:9000";
+const AUTH_BASE = "https://ml-auth-service.onrender.com";
+const MODEL_BASE = "https://scalable-ml-inference-platform.onrender.com";
+
+function getBaseUrl(endpoint: string): string {
+    if (endpoint.startsWith('/api/v1/auth')) return AUTH_BASE;
+    if (endpoint.startsWith('/api/v1/models')) return MODEL_BASE;
+    return AUTH_BASE;
+}
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     const token = localStorage.getItem("access_token");
     const headers = new Headers(options.headers || {});
 
-    // If we have a token, attach it like an ID badge
-    if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-    }
-
+    if (token) headers.set("Authorization", `Bearer ${token}`);
     if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
         headers.set("Content-Type", "application/json");
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    const response = await fetch(`${getBaseUrl(endpoint)}${endpoint}`, {
+        ...options,
+        headers,
+    });
 
     if (response.status === 401) {
-        // If the token expires, kick them out
         localStorage.removeItem("access_token");
         window.location.href = '/';
     }

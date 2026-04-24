@@ -7,9 +7,8 @@ from ml_platform_core.config import get_settings
 from ml_platform_core.database import async_session_factory
 from ml_platform_core.exceptions import MLPlatformError, ml_platform_exception_handler
 from ml_platform_core.logging import setup_logging
-from ml_platform_core.database import engine
-from ml_platform_core.models import Base
 from app.routers.auth import router as auth_router
+from fastapi.middleware.cors import CORSMiddleware
 
 settings = get_settings()
 logger = setup_logging("auth-service", settings.log_level)
@@ -23,7 +22,16 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
-
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173", 
+            "https://scalable-ml-inference-platform-6j5m.vercel.app"
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     application.add_exception_handler(MLPlatformError, ml_platform_exception_handler)
     application.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 
@@ -46,12 +54,3 @@ def create_app() -> FastAPI:
 
 # 1. This creates your FastAPI application instance
 app = create_app()
-
-# 2. EMERGENCY BOOTSTRAP: Add this right below `app = create_app()`
-@app.on_event("startup")
-async def init_db():
-    print("=== EMERGENCY BOOTSTRAP: CREATING MISSING TABLES ===")
-    async with engine.begin() as conn:
-        # This will scan your models and create the user_analytics table in Neon
-        await conn.run_sync(Base.metadata.create_all)
-    print("=== BOOTSTRAP COMPLETE ===")
