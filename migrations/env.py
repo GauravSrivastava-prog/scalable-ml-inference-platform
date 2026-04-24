@@ -1,12 +1,21 @@
 """Alembic async migration environment."""
-
+import sys
+import os
 import asyncio
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
+# -------------------------------------------------------------
+# PATH INJECTION: MUST BE BEFORE ml_platform_core IMPORTS
+# -------------------------------------------------------------
+# This dynamically finds the folder one level up (your root) 
+# and forces Python to look there, bypassing all space/terminal issues.
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+# -------------------------------------------------------------
 from ml_platform_core.config import get_settings
 # Import all models so Base.metadata is fully populated
 from ml_platform_core.models import Base  # noqa: F401

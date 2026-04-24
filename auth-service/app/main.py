@@ -7,7 +7,8 @@ from ml_platform_core.config import get_settings
 from ml_platform_core.database import async_session_factory
 from ml_platform_core.exceptions import MLPlatformError, ml_platform_exception_handler
 from ml_platform_core.logging import setup_logging
-
+from ml_platform_core.database import engine
+from ml_platform_core.models import Base
 from app.routers.auth import router as auth_router
 
 settings = get_settings()
@@ -43,5 +44,14 @@ def create_app() -> FastAPI:
     Instrumentator().instrument(application).expose(application)
     return application
 
-
+# 1. This creates your FastAPI application instance
 app = create_app()
+
+# 2. EMERGENCY BOOTSTRAP: Add this right below `app = create_app()`
+@app.on_event("startup")
+async def init_db():
+    print("=== EMERGENCY BOOTSTRAP: CREATING MISSING TABLES ===")
+    async with engine.begin() as conn:
+        # This will scan your models and create the user_analytics table in Neon
+        await conn.run_sync(Base.metadata.create_all)
+    print("=== BOOTSTRAP COMPLETE ===")
