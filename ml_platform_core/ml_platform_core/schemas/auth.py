@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from uuid import UUID
-
+from typing import List
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -48,3 +48,18 @@ class UserResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class AlgorithmUsage(BaseModel):
+    algorithm: str
+    count: int
+
+class UserStatsResponse(BaseModel):
+    total_predictions: int
+    successful_predictions: int
+    cache_hits: int
+    avg_latency_ms: float
+    compute_time_saved_ms: float
+    total_data_rows_processed: int
+    total_models_trained: int
+    algorithm_usage: List[AlgorithmUsage]
+    member_since: datetime

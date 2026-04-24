@@ -2,7 +2,7 @@
 import os
 import logging
 from contextlib import asynccontextmanager
-
+import asyncio
 from sqlalchemy import select, text
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -14,12 +14,12 @@ from ml_platform_core.config import get_settings
 from ml_platform_core.database import async_session_factory
 from ml_platform_core.exceptions import MLPlatformError, ml_platform_exception_handler
 from ml_platform_core.logging import setup_logging
-
+from app.core.sync_worker import flush_telemetry_to_db
 from app.routers.predictions import router as predictions_router
 
 settings = get_settings()
 logger = setup_logging("prediction-service", settings.log_level)
-
+background_tasks = set()
 
 async def _warm_model_cache():
     """Warm-load recently used models into the in-memory cache
@@ -68,18 +68,30 @@ async def _warm_model_cache():
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    """Modern lifespan handler — replaces deprecated on_event()."""
-    # --- STARTUP ---
+    # STARTUP
     await redis_cache.connect()
     await _warm_model_cache()
+    
+    # Spawn the autonomous daemon worker
+    sync_task = asyncio.create_task(flush_telemetry_to_db())
+    background_tasks.add(sync_task)
+    
     yield
-    # --- SHUTDOWN ---
+    
+    # SHUTDOWN
+    sync_task.cancel()
+    try:
+        await sync_task # Block until the task acknowledges cancellation
+    except asyncio.CancelledError:
+        pass
+        
     await redis_cache.close()
 
 
 def create_app() -> FastAPI:
     application = FastAPI(
-        title="ML Platform — Prediction Service",
+        title="Inference Studio - Prediction Service",
+        description="Train. Serve. Scale.",
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",

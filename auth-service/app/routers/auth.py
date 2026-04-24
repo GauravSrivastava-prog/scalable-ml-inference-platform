@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from ml_platform_core.schemas.auth import UserStatsResponse
 from ml_platform_core.dependencies import get_current_user, get_db
 from ml_platform_core.models.user import User
 from ml_platform_core.schemas.auth import (
@@ -19,7 +19,17 @@ from app.services.auth_service import AuthService
 
 router = APIRouter()
 
-
+@router.get(
+    "/me/stats", 
+    response_model=UserStatsResponse,
+    status_code=status.HTTP_200_OK
+)
+async def get_my_stats(
+    current_user: User = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
+):
+    """Get aggregated analytics for the user's profile dashboard."""
+    return await AuthService.get_user_stats(db, current_user)
 @router.post(
     "/register",
     response_model=UserRegisterResponse,

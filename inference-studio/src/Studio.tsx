@@ -4,6 +4,7 @@ import { Database, Plus, Search, Activity, Box, Clock, List, UploadCloud, X, Tra
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from './api';
 import { useAuth } from './AuthContext';
+import { User } from 'lucide-react';
 
 interface BackendModel {
     id: string;
@@ -297,6 +298,13 @@ export default function Studio() {
                     <button onClick={() => navigate('/history')} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors">
                         <List className="h-4 w-4" />
                         <span>Prediction Ledger</span>
+                    </button>
+                    <button
+                        onClick={() => navigate('/profile')}
+                        className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors"
+                    >
+                        <User className="h-4 w-4" />
+                        <span>My Profile</span>
                     </button>
                 </nav>
                 <div className="p-4 border-t border-white/10">

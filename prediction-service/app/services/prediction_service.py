@@ -120,8 +120,14 @@ class PredictionService:
                     cached_data = json.loads(cached_result)
                     
                     INFERENCE_REQUESTS.labels(model_id=str(data.model_id), status="cache_hit", type="single").inc()
+                    # NEW: Buffer the cache hit in Redis (Takes < 1ms)
+                    try:
+                        await redis_cache.client.hincrby(f"user_stats:{user.id}", "pending_cache_hits", 1)
+                    except Exception as e:
+                        logger.warning(f"Failed to buffer cache hit in Redis: {e}")
                     
                     return PredictionResponse(**cached_data)
+
             except Exception as e:
                 logger.warning(f"Redis fetch failed, falling back to ML model: {e}")
         # ------------------------------------------------

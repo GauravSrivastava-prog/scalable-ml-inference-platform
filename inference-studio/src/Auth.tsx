@@ -78,8 +78,8 @@ export default function Auth() {
 
                 <div className="relative z-10 text-center">
                     <Cpu className="mx-auto h-12 w-12 text-white/20 mb-6" strokeWidth={1} />
-                    <h1 className="text-4xl font-light tracking-tight text-white/90">Scalable Inference</h1>
-                    <p className="mt-4 text-sm font-medium tracking-widest text-muted uppercase">Platform Protocol</p>
+                    <h1 className="text-4xl font-light tracking-tight text-white/90">Inference Studio</h1>
+                    <p className="mt-4 text-sm font-medium tracking-widest text-muted uppercase">Train. Serve. Scale.</p>
                 </div>
             </div>
 

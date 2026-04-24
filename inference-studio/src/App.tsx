@@ -9,6 +9,7 @@ import Pulse from './Pulse';
 import History from './History';
 import PageTransition from './PageTransition';
 import GlobalBackground from './GlobalBackground'; // <-- 1. Import the new background
+import Profile from './Profile';
 
 // 1. Create the Bouncer Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -49,6 +50,10 @@ const AnimatedRoutes = () => {
         <Route
           path="/history"
           element={<ProtectedRoute><PageTransition><History /></PageTransition></ProtectedRoute>}
+        />
+        <Route
+          path="/profile"
+          element={<ProtectedRoute><PageTransition><Profile /></PageTransition></ProtectedRoute>}
         />
       </Routes>
     </AnimatePresence>
