@@ -1,9 +1,12 @@
 const AUTH_BASE = "https://ml-auth-service.onrender.com";
 const MODEL_BASE = "https://scalable-ml-inference-platform.onrender.com";
+const PREDICT_BASE = "https://ml-prediction-service-m7xo.onrender.com";
 
 function getBaseUrl(endpoint: string): string {
     if (endpoint.startsWith('/api/v1/auth')) return AUTH_BASE;
     if (endpoint.startsWith('/api/v1/models')) return MODEL_BASE;
+    if (endpoint.startsWith('/api/v1/predictions') || endpoint.includes('batch')) return PREDICT_BASE;
+
     return AUTH_BASE;
 }
 

@@ -97,7 +97,16 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan,
     )
-
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173", 
+            "https://scalable-ml-inference-platform-6j5m.vercel.app"
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     application.add_exception_handler(MLPlatformError, ml_platform_exception_handler)
     application.include_router(
         predictions_router, prefix="/api/v1/predictions", tags=["predictions"]
