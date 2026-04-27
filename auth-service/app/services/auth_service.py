@@ -113,7 +113,7 @@ class AuthService:
     
     @staticmethod
     async def get_user_stats(db: AsyncSession, user: User) -> UserStatsResponse:
-        """Aggregate user telemetry for the Spotify Wrapped dashboard."""
+        """Aggregate user telemetry for the profile dashboard."""
         
         # 1. Get the highly-optimized cache hits from our new table
         analytics_res = await db.execute(select(UserAnalytics).where(UserAnalytics.user_id == user.id))
@@ -130,10 +130,9 @@ class AuthService:
         pred_stats = (await db.execute(pred_query)).one()
         avg_latency = float(pred_stats.avg_latency)
 
-        # 3. Get the Model stats (Data processed and Model count)
+        # 3. Get the Model stats (Data processed)
         # We safely cast the JSON metrics to integers to sum them up directly in PostgreSQL
         models_query = select(
-            func.count().label("total_models"),
             func.coalesce(func.sum(
                 cast(MLModel.metrics['train_size'].astext, Integer) + 
                 cast(MLModel.metrics['test_size'].astext, Integer)
@@ -142,16 +141,20 @@ class AuthService:
         
         models_stats = (await db.execute(models_query)).one()
 
-        # 4. Get the Algorithm Radar Chart data (JOIN predictions and models)
-        radar_query = select(
+        # 4. THE SQL FIX: Get the Algorithm Matrix data by counting MODELS (Nodes), not Predictions
+        algo_query = select(
             MLModel.algorithm, 
-            func.count(Prediction.id).label("count")
-        ).join(MLModel, Prediction.model_id == MLModel.id)\
-         .where(Prediction.user_id == user.id)\
+            func.count(MLModel.id).label("count")
+        ).where(MLModel.user_id == user.id, MLModel.status == 'ready')\
          .group_by(MLModel.algorithm)
          
-        radar_stats = (await db.execute(radar_query)).all()
-        algorithm_usage = [AlgorithmUsage(algorithm=r.algorithm, count=r.count) for r in radar_stats]
+        algo_stats = (await db.execute(algo_query)).all()
+        
+        # Build the typed list
+        algorithm_usage = [AlgorithmUsage(algorithm=r.algorithm, count=r.count) for r in algo_stats]
+
+        # 5. THE MATH FIX: Sum the nodes directly from the array to guarantee UI alignment
+        calculated_total_nodes = sum(item.count for item in algorithm_usage)
 
         # Calculate the flex metric: Time Saved
         compute_time_saved_ms = cache_hits * avg_latency
@@ -163,8 +166,7 @@ class AuthService:
             avg_latency_ms=round(avg_latency, 2),
             compute_time_saved_ms=round(compute_time_saved_ms, 2),
             total_data_rows_processed=models_stats.total_rows,
-            total_models_trained=models_stats.total_models,
+            total_models_trained=calculated_total_nodes,  # Using our guaranteed math fix
             algorithm_usage=algorithm_usage,
             member_since=user.created_at
         )
-    
