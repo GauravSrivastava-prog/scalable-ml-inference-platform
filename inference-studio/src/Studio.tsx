@@ -259,29 +259,44 @@ export default function Studio() {
 
                 <div className="flex-1 overflow-y-auto p-8 relative">
 
-                    {/* --- THE NEW WELCOME BANNER --- */}
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                        className="relative overflow-hidden bg-surface/20 border border-white/10 rounded-2xl p-6 mb-8 shadow-sm group"
-                    >
-                        <div className="absolute -top-20 -right-20 w-64 h-64 bg-accent/10 rounded-full blur-3xl group-hover:bg-accent/20 transition-colors pointer-events-none" />
-                        <div className="relative z-10 flex items-center justify-between">
-                            <div className="flex items-center space-x-4">
-                                <div className="p-3 bg-black/30 border border-white/5 rounded-xl shadow-inner">
-                                    <User className="h-6 w-6 text-accent" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xs font-medium text-muted uppercase tracking-widest mb-1">Active Session</h2>
-                                    <div className="text-2xl font-light text-white tracking-wide">
-                                        Welcome back, <span className="font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">{userName}</span>
-                                    </div>
+                    {/* --- THE NEW OPERATOR HUD --- */}
+                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-white/10">
+                        <div className="flex items-start space-x-4">
+                            {/* Cryptographic-style Avatar Block */}
+                            <div className="h-12 w-12 bg-surface border border-white/10 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                                <div className="grid grid-cols-2 grid-rows-2 w-full h-full opacity-50">
+                                    <div className="bg-blue-500/20 border-r border-b border-white/5"></div>
+                                    <div className="bg-emerald-500/20 border-b border-white/5"></div>
+                                    <div className="bg-purple-500/20 border-r border-white/5"></div>
+                                    <div className="bg-accent/20"></div>
                                 </div>
                             </div>
-                            <div className="hidden md:flex items-center space-x-2 text-xs font-mono text-emerald-400/80 bg-emerald-400/10 px-3 py-1.5 rounded-lg border border-emerald-400/20">
-                                <Cpu className="h-3 w-3" /><span>CLUSTER SECURED</span>
+
+                            <div>
+                                <h2 className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Authenticated Operator</h2>
+                                <div className="text-2xl font-light text-white tracking-tight flex items-center">
+                                    {userName}
+                                    <motion.span
+                                        animate={{ opacity: [1, 0, 1] }}
+                                        transition={{ repeat: Infinity, duration: 1 }}
+                                        className="inline-block w-2 h-5 bg-accent ml-2"
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </motion.div>
+
+                        {/* Terminal Status Badges */}
+                        <div className="flex items-center space-x-4 mt-4 md:mt-0 font-mono text-[10px] text-muted tracking-widest uppercase">
+                            <div className="flex items-center space-x-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
+                                <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                                <span>Uplink Secure</span>
+                            </div>
+                            <div className="flex items-center space-x-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
+                                <Cpu className="h-3 w-3 text-accent" />
+                                <span>Cluster Online</span>
+                            </div>
+                        </div>
+                    </div>
 
                     {isLoading && (
                         <div className="flex justify-center items-center h-64">
