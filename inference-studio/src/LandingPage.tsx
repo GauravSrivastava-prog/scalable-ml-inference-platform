@@ -290,12 +290,14 @@ export default function LandingPage() {
                         >
                             Launch Studio <ArrowRight className="w-4 h-4" />
                         </button>
-                        <button
-                            id="view-arch-btn"
+                        <a
+                            href="https://github.com/GauravSrivastava-prog/scalable-ml-inference-platform"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="flex items-center gap-2 px-8 py-4 bg-transparent border border-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 transition-colors"
                         >
                             <Github className="w-5 h-5" /> View Architecture
-                        </button>
+                        </a>
                     </div>
                 </motion.div>
             </section>
@@ -425,12 +427,12 @@ export default function LandingPage() {
                                     initial={{
                                         left: sim.phase === 'to-redis' ? '16.67%'
                                             : sim.phase === 'to-fastapi' ? '50%'
-                                            : sim.cacheResult === 'hit' ? '50%' : '83.33%',
+                                                : sim.cacheResult === 'hit' ? '50%' : '83.33%',
                                     }}
                                     animate={{
                                         left: sim.phase === 'to-redis' ? '50%'
                                             : sim.phase === 'to-fastapi' ? '83.33%'
-                                            : '16.67%',
+                                                : '16.67%',
                                     }}
                                     transition={{ duration: sim.phase === 'return' && sim.cacheResult === 'hit' ? 0.15 : 0.35, ease: 'easeInOut' }}
                                 />
@@ -439,22 +441,19 @@ export default function LandingPage() {
 
                         {/* NODE 1: Client */}
                         <div className="relative z-10 flex flex-col items-center gap-2 w-1/3">
-                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${
-                                sim.phase === 'done' ? 'border-green-500/40 bg-green-500/5 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
-                                    : 'border-gray-700 bg-gray-900/50'
-                            }`}>
-                                <Terminal className={`w-6 h-6 transition-colors duration-300 ${
-                                    sim.phase === 'done' ? 'text-green-400' : 'text-gray-500'
-                                }`} />
+                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${sim.phase === 'done' ? 'border-green-500/40 bg-green-500/5 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
+                                : 'border-gray-700 bg-gray-900/50'
+                                }`}>
+                                <Terminal className={`w-6 h-6 transition-colors duration-300 ${sim.phase === 'done' ? 'text-green-400' : 'text-gray-500'
+                                    }`} />
                             </div>
                             <span className="text-[11px] font-mono text-gray-500 tracking-wider uppercase">Client</span>
                             {sim.phase === 'done' && (
                                 <motion.span
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    className={`text-[10px] font-mono font-bold ${
-                                        sim.latency === '2ms' ? 'text-green-400' : 'text-yellow-400'
-                                    }`}
+                                    className={`text-[10px] font-mono font-bold ${sim.latency === '2ms' ? 'text-green-400' : 'text-yellow-400'
+                                        }`}
                                 >
                                     {sim.latency}
                                 </motion.span>
@@ -463,27 +462,24 @@ export default function LandingPage() {
 
                         {/* NODE 2: Redis Tier-2 */}
                         <div className="relative z-10 flex flex-col items-center gap-2 w-1/3">
-                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${
-                                sim.phase === 'redis-check' && sim.cacheResult === 'hit'
-                                    ? 'border-green-500/50 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
-                                    : sim.phase === 'redis-check' && sim.cacheResult === 'miss'
+                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${sim.phase === 'redis-check' && sim.cacheResult === 'hit'
+                                ? 'border-green-500/50 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
+                                : sim.phase === 'redis-check' && sim.cacheResult === 'miss'
                                     ? 'border-yellow-500/50 bg-yellow-500/10 shadow-[0_0_20px_rgba(234,179,8,0.2)]'
                                     : 'border-gray-700 bg-gray-900/50'
-                            }`}>
-                                <Database className={`w-6 h-6 transition-colors duration-300 ${
-                                    sim.phase === 'redis-check' && sim.cacheResult === 'hit' ? 'text-green-400'
-                                        : sim.phase === 'redis-check' && sim.cacheResult === 'miss' ? 'text-yellow-400'
+                                }`}>
+                                <Database className={`w-6 h-6 transition-colors duration-300 ${sim.phase === 'redis-check' && sim.cacheResult === 'hit' ? 'text-green-400'
+                                    : sim.phase === 'redis-check' && sim.cacheResult === 'miss' ? 'text-yellow-400'
                                         : 'text-gray-500'
-                                }`} />
+                                    }`} />
                             </div>
                             <span className="text-[11px] font-mono text-gray-500 tracking-wider uppercase">Redis Tier-2</span>
                             {sim.phase === 'redis-check' && (
                                 <motion.span
                                     initial={{ opacity: 0, scale: 0.8 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    className={`text-[10px] font-mono font-bold ${
-                                        sim.cacheResult === 'hit' ? 'text-green-400' : 'text-yellow-400'
-                                    }`}
+                                    className={`text-[10px] font-mono font-bold ${sim.cacheResult === 'hit' ? 'text-green-400' : 'text-yellow-400'
+                                        }`}
                                 >
                                     {sim.cacheResult === 'hit' ? '● HIT' : '○ MISS'}
                                 </motion.span>
@@ -492,14 +488,12 @@ export default function LandingPage() {
 
                         {/* NODE 3: FastAPI Worker */}
                         <div className="relative z-10 flex flex-col items-center gap-2 w-1/3">
-                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${
-                                sim.phase === 'executing'
-                                    ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
-                                    : 'border-gray-700 bg-gray-900/50'
-                            }`}>
-                                <Server className={`w-6 h-6 transition-colors duration-300 ${
-                                    sim.phase === 'executing' ? 'text-blue-400 animate-pulse' : 'text-gray-500'
-                                }`} />
+                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${sim.phase === 'executing'
+                                ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
+                                : 'border-gray-700 bg-gray-900/50'
+                                }`}>
+                                <Server className={`w-6 h-6 transition-colors duration-300 ${sim.phase === 'executing' ? 'text-blue-400 animate-pulse' : 'text-gray-500'
+                                    }`} />
                             </div>
                             <span className="text-[11px] font-mono text-gray-500 tracking-wider uppercase">FastAPI Worker</span>
                             {sim.phase === 'executing' && (
@@ -535,19 +529,17 @@ export default function LandingPage() {
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-500">Cache:</span>
-                                    <span className={`font-bold ${
-                                        sim.cacheResult === 'hit' ? 'text-green-400'
-                                            : sim.cacheResult === 'miss' ? 'text-yellow-400'
+                                    <span className={`font-bold ${sim.cacheResult === 'hit' ? 'text-green-400'
+                                        : sim.cacheResult === 'miss' ? 'text-yellow-400'
                                             : 'text-gray-600'
-                                    }`}>
+                                        }`}>
                                         {sim.cacheResult ? sim.cacheResult.toUpperCase() : '—'}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center border-t border-gray-800 pt-3">
                                     <span className="text-gray-500">Latency:</span>
-                                    <span className={`font-bold text-sm ${
-                                        sim.latency === '2ms' ? 'text-green-400' : sim.latency === '1.2s' ? 'text-yellow-400' : 'text-gray-600'
-                                    }`}>
+                                    <span className={`font-bold text-sm ${sim.latency === '2ms' ? 'text-green-400' : sim.latency === '1.2s' ? 'text-yellow-400' : 'text-gray-600'
+                                        }`}>
                                         {sim.latency}
                                     </span>
                                 </div>
