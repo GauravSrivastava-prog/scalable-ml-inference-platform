@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Cpu } from 'lucide-react';
+import { ArrowRight, Cpu, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { apiFetch } from './api';
+import { ROUTES } from './routes';
 
 
 export default function Auth() {
@@ -19,6 +20,9 @@ export default function Auth() {
     const [username, setUsername] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    // Back button hover state for the HUD glow effect
+    const [backHovered, setBackHovered] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -65,6 +69,65 @@ export default function Auth() {
         // Root container stays bg-transparent so the global canvas shows through
         <div className="relative flex h-screen w-full bg-transparent overflow-hidden font-sans">
 
+            {/* ── HUD ESCAPE HATCH ─────────────────────────────────────
+                 Premium glassmorphic command-line breadcrumb with a
+                 pulsing blue border glow and magnetic hover expansion.
+                 Positioned top-left as a floating HUD element that
+                 feels native to the neural-network auth aesthetic.
+                 ─────────────────────────────────────────────────────── */}
+            <motion.button
+                id="back-to-platform-btn"
+                onClick={() => navigate(ROUTES.LANDING)}
+                onMouseEnter={() => setBackHovered(true)}
+                onMouseLeave={() => setBackHovered(false)}
+                initial={{ opacity: 0, y: -20, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.7, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                className="absolute top-5 left-5 z-50 cursor-pointer group"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+                {/* Outer glow ring — pulses subtly, flares on hover */}
+                <motion.div
+                    className="absolute -inset-[1px] rounded-lg opacity-0 group-hover:opacity-100"
+                    animate={{
+                        boxShadow: backHovered
+                            ? '0 0 20px rgba(59,130,246,0.3), 0 0 40px rgba(99,102,241,0.15), inset 0 0 12px rgba(59,130,246,0.1)'
+                            : '0 0 8px rgba(59,130,246,0.1), 0 0 16px rgba(99,102,241,0.05)',
+                    }}
+                    transition={{ duration: 0.4 }}
+                    style={{
+                        background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.1), rgba(59,130,246,0.15))',
+                        borderRadius: '0.5rem',
+                    }}
+                />
+
+                {/* Inner shell — glassmorphic card with monospaced HUD text */}
+                <div
+                    className="relative flex items-center gap-2 px-3.5 py-2 rounded-lg
+                               bg-white/[0.03] backdrop-blur-xl
+                               border border-white/[0.07] group-hover:border-blue-500/30
+                               transition-all duration-300"
+                >
+                    {/* Animated chevron — slides left on hover */}
+                    <motion.div
+                        animate={{ x: backHovered ? -2 : 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                    >
+                        <ChevronLeft className="w-3.5 h-3.5 text-blue-400/60 group-hover:text-blue-400" />
+                    </motion.div>
+
+                    {/* Status dot — pulses like a live system indicator */}
+                    <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400/60 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500/80" />
+                    </span>
+
+                    {/* Monospaced label — reads like a terminal route */}
+                    <span className="font-mono text-[11px] tracking-widest uppercase text-white/30 group-hover:text-white/70 transition-colors duration-300">
+                        sys://platform
+                    </span>
+                </div>
+            </motion.button>
 
             {/* Left Side: The "AI Core" Animation */}
             <div className="relative z-10 hidden lg:flex w-1/2 items-center justify-center border-r border-white/5 bg-transparent backdrop-blur-[2px]">
