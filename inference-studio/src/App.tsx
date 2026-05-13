@@ -10,12 +10,14 @@ import History from './History';
 import PageTransition from './PageTransition';
 import GlobalBackground from './GlobalBackground'; // <-- 1. Import the new background
 import Profile from './Profile';
+import { ROUTES } from './routes';
+import LandingPage from './LandingPage';
 
 // 1. Create the Bouncer Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('access_token');
   if (!token) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={ROUTES.LOGIN} replace />;
   }
   return <>{children}</>;
 };
@@ -28,9 +30,13 @@ const AnimatedRoutes = () => {
     // 'wait' ensures the old page fades out completely before the new one slides in
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        {/* Public Route */}
+        {/* Public Routes */}
         <Route
-          path="/"
+          path={ROUTES.LANDING}
+          element={<PageTransition><LandingPage /></PageTransition>}
+        />
+        <Route
+          path={ROUTES.LOGIN}
           element={<PageTransition><Auth /></PageTransition>}
         />
 
