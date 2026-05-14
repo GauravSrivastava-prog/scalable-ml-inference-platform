@@ -128,7 +128,7 @@ export default function Studio() {
     );
 
     return (
-        <div className="min-h-screen bg-transparent font-sans text-primary flex relative z-10">
+        <div className="min-h-screen bg-transparent font-sans text-primary flex relative z-10 min-w-0">
 
             {/* PIPELINE MODAL */}
             <AnimatePresence>
@@ -139,26 +139,26 @@ export default function Studio() {
                     >
                         <motion.div
                             initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-                            className="bg-surface border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+                            className="bg-surface border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl min-w-0"
                         >
                             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
                                 <h3 className="font-medium text-white">Create New Pipeline</h3>
-                                <button onClick={() => setIsModalOpen(false)} className="text-muted hover:text-white p-1 rounded-md transition-colors">
+                                <button onClick={() => setIsModalOpen(false)} className="text-muted hover:text-white p-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md transition-colors">
                                     <X className="h-5 w-5" />
                                 </button>
                             </div>
 
-                            <div className="p-6">
+                            <div className="p-6 min-w-0">
                                 {modalStep === 'upload' ? (
-                                    <div className="space-y-4">
+                                    <div className="space-y-4 min-w-0">
                                         <p className="text-sm text-muted">Step 1: Upload your raw CSV dataset.</p>
 
-                                        <label className="border-2 border-dashed border-white/10 hover:border-accent/50 rounded-xl p-8 flex flex-col items-center justify-center bg-white/[0.02] hover:bg-white/[0.04] text-center cursor-pointer transition-all group relative">
-                                            <input type="file" accept=".csv" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="hidden" />
+                                        <label className="border-2 border-dashed border-white/10 hover:border-accent/50 rounded-xl p-8 flex flex-col items-center justify-center bg-white/[0.02] hover:bg-white/[0.04] text-center cursor-pointer transition-all group relative min-w-0">
+                                            <input type="file" accept=".csv,text/csv,application/vnd.ms-excel" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="hidden" />
                                             {selectedFile ? (
-                                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center">
+                                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center min-w-0 w-full">
                                                     <div className="p-3 bg-green-500/10 text-green-400 rounded-full mb-3"><CheckCircle2 className="h-6 w-6" /></div>
-                                                    <p className="text-sm font-medium text-white truncate max-w-[200px]">{selectedFile.name}</p>
+                                                    <p className="text-sm font-medium text-white truncate max-w-full px-2">{selectedFile.name}</p>
                                                     <p className="text-xs text-muted mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                                                 </motion.div>
                                             ) : (
@@ -170,26 +170,26 @@ export default function Studio() {
                                             )}
                                         </label>
 
-                                        <button onClick={handleFileUpload} disabled={!selectedFile || isProcessing} className="w-full bg-accent hover:bg-accent/90 text-white font-medium py-2.5 rounded-lg transition-colors shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:bg-white/10 disabled:shadow-none">
+                                        <button onClick={handleFileUpload} disabled={!selectedFile || isProcessing} className="w-full bg-accent hover:bg-accent/90 text-white font-medium py-3 min-h-[44px] rounded-lg transition-colors shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:bg-white/10 disabled:shadow-none">
                                             {isProcessing ? 'Uploading to cluster...' : 'Upload Dataset'}
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="space-y-4">
+                                    <div className="space-y-4 min-w-0">
                                         <p className="text-sm text-muted">Step 2: Configure Training Parameters.</p>
-                                        <div className="space-y-3">
+                                        <div className="space-y-3 min-w-0">
                                             <div>
                                                 <label className="text-xs font-medium text-muted mb-1 block">Model Name</label>
-                                                <input type="text" placeholder="e.g., Churn Predictor V4" value={modelName} onChange={(e) => setModelName(e.target.value)} className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors" />
+                                                <input type="text" placeholder="e.g., Churn Predictor V4" value={modelName} onChange={(e) => setModelName(e.target.value)} className="w-full bg-background border border-white/10 rounded-lg px-3 py-3 text-sm text-white focus:outline-none focus:border-accent transition-colors" />
                                             </div>
                                             <div>
                                                 <label className="text-xs font-medium text-muted mb-1 block">Target Column (from CSV)</label>
-                                                <input type="text" placeholder="e.g., churn" value={targetColumn} onChange={(e) => setTargetColumn(e.target.value)} className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors" />
+                                                <input type="text" placeholder="e.g., churn" value={targetColumn} onChange={(e) => setTargetColumn(e.target.value)} className="w-full bg-background border border-white/10 rounded-lg px-3 py-3 text-sm text-white focus:outline-none focus:border-accent transition-colors" />
                                             </div>
                                             <div>
                                                 <label className="text-xs font-medium text-muted mb-1 block">Algorithm</label>
                                                 <div className="relative">
-                                                    <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)} className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors appearance-none cursor-pointer">
+                                                    <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)} className="w-full bg-background border border-white/10 rounded-lg px-3 py-3 text-sm text-white focus:outline-none focus:border-accent transition-colors appearance-none cursor-pointer">
                                                         <option value="random_forest">Random Forest</option>
                                                         <option value="xgboost">XGBoost</option>
                                                         <option value="logistic_regression">Logistic Regression</option>
@@ -201,7 +201,7 @@ export default function Studio() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <button onClick={handleTrainModel} disabled={!modelName || !targetColumn || isProcessing} className="w-full bg-accent hover:bg-accent/90 text-white font-medium py-2.5 rounded-lg transition-colors shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50">
+                                        <button onClick={handleTrainModel} disabled={!modelName || !targetColumn || isProcessing} className="w-full bg-accent hover:bg-accent/90 text-white font-medium py-3 min-h-[44px] rounded-lg transition-colors shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50">
                                             {isProcessing ? 'Training Model...' : 'Initialize Training Pipeline'}
                                         </button>
                                     </div>
@@ -213,55 +213,79 @@ export default function Studio() {
             </AnimatePresence>
 
             {/* SIDEBAR */}
-            <aside className="w-64 border-r border-white/10 bg-black/40 backdrop-blur-md hidden md:flex flex-col">
+            <aside className="w-64 border-r border-white/10 bg-black/40 backdrop-blur-md hidden md:flex flex-col shrink-0">
                 <div className="p-6 border-b border-white/10">
                     <div className="flex items-center space-x-3">
-                        <Database className="h-6 w-6 text-accent" />
-                        <span className="text-lg font-medium tracking-wide">Inference<span className="font-light text-muted">Studio</span></span>
+                        <Database className="h-6 w-6 text-accent shrink-0" />
+                        <span className="text-lg font-medium tracking-wide truncate">Inference<span className="font-light text-muted">Studio</span></span>
                     </div>
                 </div>
                 <nav className="flex-1 p-4 space-y-2">
-                    <button className="w-full flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg text-sm font-medium text-white transition-colors">
-                        <Box className="h-4 w-4" /><span>Deployed Models</span>
+                    <button className="w-full flex items-center space-x-3 px-4 py-3 min-h-[44px] bg-white/5 rounded-lg text-sm font-medium text-white transition-colors">
+                        <Box className="h-4 w-4 shrink-0" /><span className="truncate">Deployed Models</span>
                     </button>
-                    <button onClick={() => navigate('/pulse')} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors">
-                        <Activity className="h-4 w-4" /><span>System Pulse</span>
+                    <button onClick={() => navigate('/pulse')} className="w-full flex items-center space-x-3 px-4 py-3 min-h-[44px] hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors">
+                        <Activity className="h-4 w-4 shrink-0" /><span className="truncate">System Pulse</span>
                     </button>
-                    <button onClick={() => navigate('/history')} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors">
-                        <List className="h-4 w-4" /><span>Prediction Ledger</span>
+                    <button onClick={() => navigate('/history')} className="w-full flex items-center space-x-3 px-4 py-3 min-h-[44px] hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors">
+                        <List className="h-4 w-4 shrink-0" /><span className="truncate">Prediction Ledger</span>
                     </button>
-                    <button onClick={() => navigate('/profile')} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors">
-                        <User className="h-4 w-4" /><span>My Profile</span>
+                    <button onClick={() => navigate('/profile')} className="w-full flex items-center space-x-3 px-4 py-3 min-h-[44px] hover:bg-white/5 rounded-lg text-sm font-medium text-muted hover:text-white transition-colors">
+                        <User className="h-4 w-4 shrink-0" /><span className="truncate">My Profile</span>
                     </button>
                 </nav>
                 <div className="p-4 border-t border-white/10">
-                    <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-muted hover:text-white transition-colors">Disconnect Session</button>
+                    <button onClick={logout} className="w-full text-left px-4 py-3 min-h-[44px] text-sm text-muted hover:text-white transition-colors truncate">Disconnect Session</button>
                 </div>
             </aside>
 
+            {/* FIXED BOTTOM NAVIGATION (MOBILE) */}
+            <nav className="fixed bottom-0 left-0 right-0 h-16 bg-black/90 backdrop-blur-xl border-t border-white/10 flex md:hidden items-center justify-around px-2 z-40">
+                <button className="flex flex-col items-center justify-center flex-1 h-full min-h-[44px] text-accent">
+                    <Box className="h-5 w-5" />
+                    <span className="text-[10px] mt-0.5">Models</span>
+                </button>
+                <button onClick={() => navigate('/pulse')} className="flex flex-col items-center justify-center flex-1 h-full min-h-[44px] text-muted hover:text-white transition-colors">
+                    <Activity className="h-5 w-5" />
+                    <span className="text-[10px] mt-0.5">Pulse</span>
+                </button>
+                <button onClick={() => navigate('/history')} className="flex flex-col items-center justify-center flex-1 h-full min-h-[44px] text-muted hover:text-white transition-colors">
+                    <List className="h-5 w-5" />
+                    <span className="text-[10px] mt-0.5">Ledger</span>
+                </button>
+                <button onClick={() => navigate('/profile')} className="flex flex-col items-center justify-center flex-1 h-full min-h-[44px] text-muted hover:text-white transition-colors">
+                    <User className="h-5 w-5" />
+                    <span className="text-[10px] mt-0.5">Profile</span>
+                </button>
+                <button onClick={logout} className="flex flex-col items-center justify-center flex-1 h-full min-h-[44px] text-red-400/80 hover:text-red-400 transition-colors">
+                    <X className="h-5 w-5" />
+                    <span className="text-[10px] mt-0.5">Logout</span>
+                </button>
+            </nav>
+
             {/* MAIN CONTENT */}
-            <main className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="h-20 border-b border-white/10 flex items-center justify-between px-8 bg-black/40 backdrop-blur-md z-10">
-                    <div>
-                        <h1 className="text-xl font-medium">Model Registry</h1>
-                        <p className="text-xs text-muted mt-1">Manage and monitor active endpoints</p>
+            <main className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
+                <header className="h-20 border-b border-white/10 flex items-center justify-between px-4 md:px-8 bg-black/40 backdrop-blur-md z-10 gap-3 min-w-0 shrink-0">
+                    <div className="min-w-0 truncate hidden md:block">
+                        <h1 className="text-xl font-medium truncate">Model Registry</h1>
+                        <p className="text-xs text-muted mt-1 truncate">Manage and monitor active endpoints</p>
                     </div>
-                    <div className="flex items-center space-x-4">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                            <input type="text" placeholder="Search models..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-64 bg-surface/50 border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-white/30 transition-all" />
+                    <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-between md:justify-end min-w-0 flex-1 md:flex-initial">
+                        <div className="relative flex-1 min-w-0 max-w-md">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted shrink-0" />
+                            <input type="text" placeholder="Search models..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full sm:w-48 md:w-64 bg-surface/50 border border-white/10 rounded-full pl-10 pr-4 py-2.5 sm:py-3 min-h-[44px] text-sm focus:outline-none focus:border-white/30 transition-all" />
                         </div>
-                        <button onClick={() => setIsModalOpen(true)} className="flex items-center space-x-2 bg-accent hover:bg-accent/90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-[0_0_20px_rgba(59,130,246,0.2)]">
-                            <Plus className="h-4 w-4" /><span>New Pipeline</span>
+                        <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-accent hover:bg-accent/90 text-white px-3 sm:px-4 py-2.5 sm:py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors shadow-[0_0_20px_rgba(59,130,246,0.2)] shrink-0">
+                            <Plus className="h-4 w-4 shrink-0" /><span>New Pipeline</span>
                         </button>
                     </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto p-8 relative">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-8 relative pb-24 md:pb-8 min-w-0">
 
                     {/* --- THE NEW OPERATOR HUD --- */}
-                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-white/10">
-                        <div className="flex items-start space-x-4">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-white/10 gap-4 min-w-0">
+                        <div className="flex items-start space-x-4 min-w-0">
                             {/* Cryptographic-style Avatar Block */}
                             <div className="h-12 w-12 bg-surface border border-white/10 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                                 <div className="grid grid-cols-2 grid-rows-2 w-full h-full opacity-50">
@@ -272,27 +296,27 @@ export default function Studio() {
                                 </div>
                             </div>
 
-                            <div>
-                                <h2 className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1">Authenticated Operator</h2>
-                                <div className="text-2xl font-light text-white tracking-tight flex items-center">
-                                    {userName}
+                            <div className="min-w-0 flex-1">
+                                <h2 className="text-[10px] font-mono text-muted uppercase tracking-widest mb-1 truncate">Authenticated Operator</h2>
+                                <div className="text-xl sm:text-2xl font-light text-white tracking-tight flex items-center min-w-0">
+                                    <span className="truncate">{userName}</span>
                                     <motion.span
                                         animate={{ opacity: [1, 0, 1] }}
                                         transition={{ repeat: Infinity, duration: 1 }}
-                                        className="inline-block w-2 h-5 bg-accent ml-2"
+                                        className="inline-block w-2 h-5 bg-accent ml-2 shrink-0"
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* Terminal Status Badges */}
-                        <div className="flex items-center space-x-4 mt-4 md:mt-0 font-mono text-[10px] text-muted tracking-widest uppercase">
+                        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] text-muted tracking-widest uppercase shrink-0">
                             <div className="flex items-center space-x-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
-                                <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                                <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)] shrink-0"></span>
                                 <span>Uplink Secure</span>
                             </div>
                             <div className="flex items-center space-x-2 bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
-                                <Cpu className="h-3 w-3 text-accent" />
+                                <Cpu className="h-3 w-3 text-accent shrink-0" />
                                 <span>Cluster Online</span>
                             </div>
                         </div>
@@ -305,14 +329,14 @@ export default function Studio() {
                     )}
 
                     {!isLoading && models.length > 0 && filteredModels.length === 0 && (
-                        <div className="flex flex-col items-center justify-center h-64 text-center">
-                            <Search className="h-8 w-8 text-muted/30 mb-3" />
-                            <p className="text-muted">No models found matching "{searchQuery}"</p>
+                        <div className="flex flex-col items-center justify-center h-64 text-center min-w-0">
+                            <Search className="h-8 w-8 text-muted/30 mb-3 shrink-0" />
+                            <p className="text-muted truncate max-w-full px-4">No models found matching "{searchQuery}"</p>
                         </div>
                     )}
 
                     {!isLoading && filteredModels.length > 0 && (
-                        <div className={`grid gap-6 ${view === 'grid' ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1'}`}>
+                        <div className={`grid gap-6 min-w-0 ${view === 'grid' ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1'}`}>
                             {filteredModels.map((model) => (
                                 <motion.div
                                     key={model.id}
@@ -320,36 +344,36 @@ export default function Studio() {
                                     animate={{ opacity: 1, y: 0 }}
                                     whileHover={{ y: -2 }}
                                     onClick={() => navigate(`/model/${model.id}`, { state: { model } })}
-                                    className="group relative flex flex-col bg-surface/30 border border-white/10 rounded-2xl p-6 hover:bg-surface/50 hover:border-white/20 transition-all cursor-pointer overflow-hidden"
+                                    className="group relative flex flex-col bg-surface/30 border border-white/10 rounded-2xl p-6 hover:bg-surface/50 hover:border-white/20 transition-all cursor-pointer overflow-hidden min-w-0"
                                 >
                                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/5 to-transparent group-hover:via-accent/50 transition-all" />
 
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h3 className="text-lg font-medium text-white/90 group-hover:text-white transition-colors">{model.name}</h3>
-                                            <div className="flex items-center space-x-2 mt-1 text-xs text-muted">
-                                                <span className="font-mono bg-white/5 px-2 py-0.5 rounded-md">v{model.version}</span>
-                                                <span>•</span>
-                                                <span className="capitalize">{model.algorithm.replace('_', ' ')}</span>
+                                    <div className="flex justify-between items-start mb-4 gap-2 min-w-0">
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="text-lg font-medium text-white/90 group-hover:text-white transition-colors truncate">{model.name}</h3>
+                                            <div className="flex items-center space-x-2 mt-1 text-xs text-muted min-w-0">
+                                                <span className="font-mono bg-white/5 px-2 py-0.5 rounded-md shrink-0">v{model.version}</span>
+                                                <span className="shrink-0">•</span>
+                                                <span className="capitalize truncate">{model.algorithm.replace('_', ' ')}</span>
                                             </div>
                                         </div>
 
-                                        <button onClick={(e) => handleDeleteModel(e, model.id)} className="p-2 text-muted hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors z-10" title="Delete Model">
-                                            <Trash2 className="h-4 w-4" />
+                                        <button onClick={(e) => handleDeleteModel(e, model.id)} className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors z-10 shrink-0" title="Delete Model">
+                                            <Trash2 className="h-4 w-4 shrink-0" />
                                         </button>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4 mt-auto pt-6 border-t border-white/5">
-                                        <div>
-                                            <p className="text-xs text-muted mb-1 flex items-center"><Activity className="h-3 w-3 mr-1" /> Status</p>
-                                            <p className="text-sm font-medium flex items-center space-x-2">
-                                                <span className={`h-2 w-2 rounded-full ${model.status === 'ready' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`} />
-                                                <span className="capitalize">{model.status}</span>
+                                    <div className="grid grid-cols-2 gap-4 mt-auto pt-6 border-t border-white/5 min-w-0">
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-muted mb-1 flex items-center"><Activity className="h-3 w-3 mr-1 shrink-0" /> Status</p>
+                                            <p className="text-sm font-medium flex items-center space-x-2 truncate">
+                                                <span className={`h-2 w-2 rounded-full shrink-0 ${model.status === 'ready' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`} />
+                                                <span className="capitalize truncate">{model.status}</span>
                                             </p>
                                         </div>
-                                        <div>
-                                            <p className="text-xs text-muted mb-1 flex items-center"><Clock className="h-3 w-3 mr-1" /> Created</p>
-                                            <p className="text-sm font-medium">{new Date(model.created_at).toLocaleDateString()}</p>
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-muted mb-1 flex items-center"><Clock className="h-3 w-3 mr-1 shrink-0" /> Created</p>
+                                            <p className="text-sm font-medium truncate">{new Date(model.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
                                 </motion.div>

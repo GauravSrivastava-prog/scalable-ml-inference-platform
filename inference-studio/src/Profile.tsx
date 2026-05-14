@@ -91,10 +91,10 @@ export default function Profile() {
     const THEME_COLORS = ['bg-cyan-400', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-600'];
 
     return (
-        <div className="min-h-screen bg-transparent relative z-10 font-sans text-primary p-6 sm:p-12 flex flex-col">
+        <div className="min-h-screen bg-transparent relative z-10 font-sans text-primary p-4 sm:p-6 md:p-12 flex flex-col min-w-0">
 
             <nav className="flex items-center space-x-4 mb-12 border-b border-white/10 pb-6">
-                <button onClick={() => navigate('/studio')} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-muted hover:text-white">
+                <button onClick={() => navigate('/studio')} className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors text-muted hover:text-white">
                     <ArrowLeft className="h-5 w-5" />
                 </button>
                 <div>
@@ -110,15 +110,15 @@ export default function Profile() {
                 <StatCard title="Data Processed" value={stats?.total_data_rows_processed} icon={<Database size={20} className="text-emerald-500" />} subtitle="Total Rows" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-w-0">
 
                 {/* Panel 1: Security Operations */}
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-1 bg-surface/20 border border-white/10 rounded-2xl p-8 flex flex-col">
+                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-1 bg-surface/20 border border-white/10 rounded-2xl p-4 sm:p-8 flex flex-col min-w-0">
                     <h3 className="text-lg font-medium mb-6 flex items-center gap-2">
                         <Shield size={18} className="text-accent" /> Account Operations
                     </h3>
 
-                    <form onSubmit={handleUpdateSecurity} className="space-y-5 flex-1">
+                    <form onSubmit={handleUpdateSecurity} className="space-y-5 flex-1 min-w-0">
                         <div>
                             <label className="text-xs text-muted uppercase tracking-wider mb-2 block">New Username</label>
                             <div className="relative">
@@ -126,7 +126,7 @@ export default function Profile() {
                                 <input
                                     type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)}
                                     placeholder="Enter new username"
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-accent transition-colors"
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-accent transition-colors"
                                 />
                             </div>
                         </div>
@@ -142,7 +142,7 @@ export default function Profile() {
                                     onChange={(e) => setCurrentPassword(e.target.value)}
                                     placeholder="Verify current password"
                                     required
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-accent transition-colors"
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-accent transition-colors"
                                 />
                             </div>
                         </div>
@@ -153,12 +153,12 @@ export default function Profile() {
                                 <input
                                     type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-accent transition-colors"
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-accent transition-colors"
                                 />
                             </div>
                         </div>
 
-                        <button type="submit" disabled={isUpdating || (!newUsername && !newPassword)} className="w-full mt-4 bg-white/5 border border-white/10 hover:bg-accent/20 hover:border-accent/50 text-white text-sm font-medium py-2.5 rounded-lg flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="submit" disabled={isUpdating || (!newUsername && !newPassword)} className="w-full mt-4 bg-white/5 border border-white/10 hover:bg-accent/20 hover:border-accent/50 text-white text-sm font-medium py-3 min-h-[44px] rounded-lg flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                             {isUpdating ? <span className="animate-pulse">Authorizing...</span> : <><Save className="h-4 w-4 mr-2" /> Apply Changes</>}
                         </button>
 
@@ -171,25 +171,25 @@ export default function Profile() {
                 </motion.div>
 
                 {/* Panel 2: The True Node Grid Matrix */}
-                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-2 bg-surface/20 border border-white/10 rounded-2xl p-8 flex flex-col">
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-2 bg-surface/20 border border-white/10 rounded-2xl p-4 sm:p-8 flex flex-col min-w-0">
                     <div className="flex justify-between items-start mb-8">
-                        <div>
-                            <h3 className="text-lg font-medium flex items-center gap-2 text-white">
-                                <Cpu size={18} className="text-accent" /> Cluster Allocation Matrix
+                        <div className="min-w-0 mr-2">
+                            <h3 className="text-lg font-medium flex items-center gap-2 text-white truncate">
+                                <Cpu size={18} className="text-accent shrink-0" /> Cluster Allocation Matrix
                             </h3>
-                            <p className="text-xs text-muted mt-1">Physical distribution of active models across computing nodes</p>
+                            <p className="text-xs text-muted mt-1 truncate">Physical distribution of active models across computing nodes</p>
                         </div>
-                        <div className="px-3 py-1 bg-black/40 border border-white/10 rounded font-mono text-[10px] text-muted tracking-widest uppercase">
+                        <div className="px-3 py-1 bg-black/40 border border-white/10 rounded font-mono text-[10px] text-muted tracking-widest uppercase shrink-0">
                             Total Nodes: {stats?.total_models_trained}
                         </div>
                     </div>
 
-                    <div className="flex-1 flex flex-col lg:flex-row gap-8">
+                    <div className="flex-1 flex flex-col lg:flex-row gap-8 min-w-0">
                         {stats?.algorithm_usage && stats.algorithm_usage.length > 0 ? (
                             <>
                                 {/* THE MATRIX GRID */}
-                                <div className="flex-1">
-                                    <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-1.5">
+                                <div className="flex-1 min-w-0">
+                                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-1.5">
                                         {/* Flatten the counts into individual nodes */}
                                         {stats.algorithm_usage.flatMap((algo, algoIdx) =>
                                             Array.from({ length: algo.count }).map((_, nodeIdx) => {
