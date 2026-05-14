@@ -77,63 +77,63 @@ export default function History() {
     }
 
     return (
-        <div className="flex h-full flex-col space-y-6 p-6 sm:p-12 text-primary font-sans">
+        <div className="flex h-full flex-col space-y-6 p-4 sm:p-8 md:p-12 text-primary font-sans min-w-0">
             {/* Header */}
-            <div className="flex items-center space-x-3 border-b border-white/10 pb-6 shrink-0">
+            <div className="flex items-center space-x-3 border-b border-white/10 pb-6 shrink-0 min-w-0">
                 {/* --- NEW BACK BUTTON --- */}
                 <button
                     onClick={() => window.history.back()} // (Or use React Router's useNavigate() if you prefer)
-                    className="p-2 -ml-2 mr-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer text-muted hover:text-white"
+                    className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2 mr-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer text-muted hover:text-white shrink-0"
                 >
                     <ArrowLeft className="h-5 w-5" />
                 </button>
                 {/* ----------------------- */}
 
-                <Database className="h-6 w-6 text-accent" />
-                <div>
-                    <h1 className="text-xl font-medium tracking-wide">Execution History</h1>
-                    <p className="text-sm text-muted">Immutable audit log of all model inferences</p>
+                <Database className="h-6 w-6 text-accent shrink-0" />
+                <div className="min-w-0 flex-1">
+                    <h1 className="text-xl font-medium tracking-wide truncate">Execution History</h1>
+                    <p className="text-sm text-muted truncate">Immutable audit log of all model inferences</p>
                 </div>
             </div>
 
             {/* KPI Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-                <div className="bg-surface/30 border border-white/10 rounded-xl p-5 flex items-center space-x-4">
-                    <div className="p-3 bg-blue-500/10 text-blue-400 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0 min-w-0">
+                <div className="bg-surface/30 border border-white/10 rounded-xl p-5 flex items-center space-x-4 min-w-0">
+                    <div className="p-3 bg-blue-500/10 text-blue-400 rounded-lg shrink-0">
                         <Activity className="h-5 w-5" />
                     </div>
-                    <div>
-                        <p className="text-xs text-muted uppercase tracking-wider mb-1">Total Inferences</p>
-                        <p className="text-2xl font-semibold">{totalRuns}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs text-muted uppercase tracking-wider mb-1 truncate">Total Inferences</p>
+                        <p className="text-xl sm:text-2xl font-semibold truncate">{totalRuns}</p>
                     </div>
                 </div>
-                <div className="bg-surface/30 border border-white/10 rounded-xl p-5 flex items-center space-x-4">
-                    <div className="p-3 bg-green-500/10 text-green-400 rounded-lg">
+                <div className="bg-surface/30 border border-white/10 rounded-xl p-5 flex items-center space-x-4 min-w-0">
+                    <div className="p-3 bg-green-500/10 text-green-400 rounded-lg shrink-0">
                         <CheckCircle2 className="h-5 w-5" />
                     </div>
-                    <div>
-                        <p className="text-xs text-muted uppercase tracking-wider mb-1">Success Rate</p>
-                        <p className="text-2xl font-semibold">{successRate}%</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs text-muted uppercase tracking-wider mb-1 truncate">Success Rate</p>
+                        <p className="text-xl sm:text-2xl font-semibold truncate">{successRate}%</p>
                     </div>
                 </div>
-                <div className="bg-surface/30 border border-white/10 rounded-xl p-5 flex items-center space-x-4">
-                    <div className="p-3 bg-purple-500/10 text-purple-400 rounded-lg">
+                <div className="bg-surface/30 border border-white/10 rounded-xl p-5 flex items-center space-x-4 min-w-0">
+                    <div className="p-3 bg-purple-500/10 text-purple-400 rounded-lg shrink-0">
                         <Clock className="h-5 w-5" />
                     </div>
-                    <div>
-                        <p className="text-xs text-muted uppercase tracking-wider mb-1">Avg Latency</p>
-                        <p className="text-2xl font-semibold font-mono">{avgLatency}<span className="text-sm text-muted ml-1">ms</span></p>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs text-muted uppercase tracking-wider mb-1 truncate">Avg Latency</p>
+                        <p className="text-xl sm:text-2xl font-semibold font-mono truncate">{avgLatency}<span className="text-sm text-muted ml-1">ms</span></p>
                     </div>
                 </div>
             </div>
 
             {/* Interactive Activity Feed */}
-            <div className="flex-1 overflow-hidden flex flex-col bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl">
+            <div className="flex-1 overflow-hidden flex flex-col bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl min-w-0">
                 <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
                     <h2 className="text-sm font-medium text-white tracking-wide">Recent Activity</h2>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2 min-w-0">
                     <AnimatePresence>
                         {predictions.length === 0 ? (
                             <div className="p-12 text-center text-muted">
@@ -146,35 +146,35 @@ export default function History() {
                                     key={record.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className={`border rounded-lg transition-colors overflow-hidden ${expandedId === record.id ? 'bg-white/[0.04] border-white/20' : 'bg-transparent border-white/5 hover:border-white/10 hover:bg-white/[0.02]'}`}
+                                    className={`border rounded-lg transition-colors overflow-hidden min-w-0 ${expandedId === record.id ? 'bg-white/[0.04] border-white/20' : 'bg-transparent border-white/5 hover:border-white/10 hover:bg-white/[0.02]'}`}
                                 >
                                     {/* Clickable Header Row */}
                                     <div
                                         onClick={() => toggleExpand(record.id)}
-                                        className="flex items-center justify-between p-4 cursor-pointer select-none"
+                                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-3 cursor-pointer select-none min-h-[44px]"
                                     >
-                                        <div className="flex items-center space-x-4 w-1/3">
+                                        <div className="flex items-center space-x-4 flex-1 min-w-0 w-full">
                                             {record.status === 'completed' ? (
                                                 <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
                                             ) : (
                                                 <XCircle className="h-4 w-4 text-red-400 shrink-0" />
                                             )}
-                                            <div className="truncate">
+                                            <div className="truncate flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-white/90 truncate">{record.result !== null ? String(record.result) : 'Error'}</p>
                                                 <p className="text-[10px] text-muted font-mono mt-0.5 truncate">{record.model_id}</p>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center justify-end space-x-8 w-2/3">
-                                            <div className="hidden sm:block text-right">
+                                        <div className="flex items-center justify-between sm:justify-end space-x-4 sm:space-x-8 shrink-0 w-full sm:w-auto pt-2 sm:pt-0 border-t border-white/5 sm:border-t-0">
+                                            <div className="hidden sm:block text-right shrink-0">
                                                 <p className="text-[10px] text-muted uppercase tracking-wider">Latency</p>
                                                 <p className="text-xs font-mono text-white/70">{record.latency_ms}ms</p>
                                             </div>
-                                            <div className="text-right">
+                                            <div className="text-left sm:text-right shrink-0">
                                                 <p className="text-[10px] text-muted uppercase tracking-wider">Timestamp</p>
                                                 <p className="text-xs text-white/70">{new Date(record.created_at).toLocaleString()}</p>
                                             </div>
-                                            <ChevronDown className={`h-4 w-4 text-muted transition-transform duration-200 ${expandedId === record.id ? 'rotate-180' : ''}`} />
+                                            <ChevronDown className={`h-4 w-4 text-muted transition-transform duration-200 shrink-0 ${expandedId === record.id ? 'rotate-180' : ''}`} />
                                         </div>
                                     </div>
 
@@ -185,10 +185,10 @@ export default function History() {
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: 'auto', opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }}
-                                                className="border-t border-white/5 bg-[#050505]"
+                                                className="border-t border-white/5 bg-[#050505] min-w-0"
                                             >
-                                                <div className="p-4 flex flex-col sm:flex-row gap-4">
-                                                    <div className="flex-1">
+                                                <div className="p-4 flex flex-col sm:flex-row gap-4 min-w-0">
+                                                    <div className="flex-1 min-w-0">
                                                         <div className="flex items-center space-x-2 mb-2">
                                                             <Code className="h-3 w-3 text-accent" />
                                                             <span className="text-xs font-medium text-muted uppercase">Input Payload</span>

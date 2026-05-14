@@ -48,12 +48,12 @@ export default function Pulse() {
     const maxRps = Math.max(...trafficHistory, 5);
 
     return (
-        <div className="min-h-screen bg-transparent relative z-10 font-sans text-primary p-6 sm:p-12 flex flex-col">
+        <div className="min-h-screen bg-transparent relative z-10 font-sans text-primary p-4 sm:p-8 md:p-12 flex flex-col">
             {/* Top Nav */}
             <nav className="flex items-center space-x-4 mb-12 border-b border-white/10 pb-6">
                 <button
                     onClick={() => navigate('/studio')}
-                    className="p-2 hover:bg-white/5 rounded-lg transition-colors text-muted hover:text-white"
+                    className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors text-muted hover:text-white"
                 >
                     <ArrowLeft className="h-5 w-5" />
                 </button>
@@ -100,21 +100,21 @@ export default function Pulse() {
             </div>
 
             {/* Live Traffic Visualizer */}
-            <div className="bg-surface/20 border border-white/10 rounded-2xl p-8 flex-1 flex flex-col">
-                <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center space-x-4">
+            <div className="bg-surface/20 border border-white/10 rounded-2xl p-4 sm:p-8 flex-1 flex flex-col min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                    <div className="flex flex-wrap items-center gap-3 min-w-0">
                         <div className="flex items-center space-x-2">
-                            <Cpu className="h-5 w-5 text-accent" />
-                            <h2 className="text-lg font-medium">Live Cluster Traffic</h2>
+                            <Cpu className="h-5 w-5 text-accent shrink-0" />
+                            <h2 className="text-lg font-medium truncate">Live Cluster Traffic</h2>
                         </div>
                         {/* CURRENT RPS DISPLAY */}
-                        <div className="bg-white/5 border border-white/10 px-3 py-1 rounded-md flex items-center space-x-2">
+                        <div className="bg-white/5 border border-white/10 px-3 py-1 rounded-md flex items-center space-x-2 shrink-0">
                             <span className="text-xs text-muted uppercase tracking-wider">Current:</span>
                             <span className="font-mono text-accent font-medium">{telemetry.current_rps} req/s</span>
                         </div>
                     </div>
 
-                    <span className={`flex items-center space-x-2 text-xs font-medium px-3 py-1 rounded-full border ${telemetry.system_healthy ? 'text-green-400 bg-green-400/10 border-green-400/20' : 'text-red-400 bg-red-400/10 border-red-400/20'} animate-pulse`}>
+                    <span className={`self-start sm:self-auto flex items-center space-x-2 text-xs font-medium px-3 py-1 rounded-full border shrink-0 ${telemetry.system_healthy ? 'text-green-400 bg-green-400/10 border-green-400/20' : 'text-red-400 bg-red-400/10 border-red-400/20'} animate-pulse`}>
                         <div className={`h-2 w-2 rounded-full ${telemetry.system_healthy ? 'bg-green-400' : 'bg-red-400'}`} />
                         <span>{telemetry.system_healthy ? 'SYSTEM HEALTHY' : 'PROMETHEUS OFFLINE'}</span>
                     </span>

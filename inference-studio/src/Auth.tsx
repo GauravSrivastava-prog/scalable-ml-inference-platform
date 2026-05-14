@@ -67,7 +67,7 @@ export default function Auth() {
 
     return (
         // Root container stays bg-transparent so the global canvas shows through
-        <div className="relative flex h-screen w-full bg-transparent overflow-hidden font-sans">
+        <div className="relative flex flex-col lg:flex-row h-screen w-full bg-transparent overflow-hidden font-sans">
 
             {/* ── HUD ESCAPE HATCH ─────────────────────────────────────
                  Premium glassmorphic command-line breadcrumb with a
@@ -83,7 +83,7 @@ export default function Auth() {
                 initial={{ opacity: 0, y: -20, filter: 'blur(4px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 transition={{ duration: 0.7, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute top-5 left-5 z-50 cursor-pointer group"
+                className="absolute top-[max(20px,env(safe-area-inset-top))] left-5 z-50 cursor-pointer group min-h-[44px] min-w-[44px] flex items-center justify-center"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
             >
                 {/* Outer glow ring — pulses subtly, flares on hover */}
@@ -129,28 +129,35 @@ export default function Auth() {
                 </div>
             </motion.button>
 
-            {/* Left Side: The "AI Core" Animation */}
-            <div className="relative z-10 hidden lg:flex w-1/2 items-center justify-center border-r border-white/5 bg-transparent backdrop-blur-[2px]">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.05)_0%,transparent_50%)]" />
+            {/* Left Side: Brand Banner (Mobile) / "AI Core" Animation (Desktop) */}
+            <div className="relative z-10 flex flex-col lg:flex w-full lg:w-1/2 items-center justify-center border-b lg:border-b-0 lg:border-r border-white/5 bg-transparent backdrop-blur-[2px] pt-[max(80px,calc(env(safe-area-inset-top)+60px))] pb-4 lg:py-0 shrink-0">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.05)_0%,transparent_50%)] hidden lg:block" />
 
                 <motion.div
                     animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.5, 0.3] }}
                     transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[100px]"
+                    className="absolute h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[100px] hidden lg:block"
                 />
 
-                <div className="relative z-10 text-center">
+                {/* Desktop view */}
+                <div className="relative z-10 text-center hidden lg:block">
                     <Cpu className="mx-auto h-12 w-12 text-white/20 mb-6" strokeWidth={1} />
                     <h1 className="text-4xl font-light tracking-tight text-white/90">Inference Studio</h1>
                     <p className="mt-4 text-sm font-medium tracking-widest text-muted uppercase">Train. Serve. Scale.</p>
                 </div>
+
+                {/* Mobile view top banner */}
+                <div className="relative z-10 flex items-center gap-3 lg:hidden px-6 w-full justify-center">
+                    <Cpu className="h-6 w-6 text-accent shrink-0" />
+                    <h1 className="text-lg font-medium tracking-wide text-white">Inference Studio</h1>
+                </div>
             </div>
 
             {/* Right Side: The Login Pane */}
-            <div className="relative z-10 flex w-full lg:w-1/2 items-center justify-center p-8 sm:p-12 lg:p-24">
+            <div className="relative z-10 flex flex-1 w-full lg:w-1/2 items-center justify-center p-4 sm:p-8 md:p-12 lg:p-24 overflow-y-auto">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}
-                    className="w-full max-w-md space-y-10"
+                    className="w-full max-w-md space-y-10 my-auto py-8"
                 >
                     <div>
                         <h2 className="text-3xl font-light tracking-tight">
@@ -194,7 +201,7 @@ export default function Auth() {
                             />
                         </div>
 
-                        <button type="submit" disabled={isLoading} className="group relative flex w-full items-center justify-between overflow-hidden rounded-lg bg-white px-4 py-3 text-sm font-medium text-black transition-all hover:bg-white/90 disabled:opacity-50">
+                        <button type="submit" disabled={isLoading} className="group relative flex w-full items-center justify-between overflow-hidden rounded-lg bg-white px-4 py-3 text-sm font-medium text-black transition-all hover:bg-white/90 disabled:opacity-50 min-h-[44px]">
                             <span className="relative z-10">
                                 {isLoading ? 'Processing...' : (isLogin ? 'Initialize Connection' : 'Register Identity')}
                             </span>
@@ -203,7 +210,7 @@ export default function Auth() {
                     </form>
 
                     <div className="mt-6 text-center">
-                        <button onClick={() => { setIsLogin(!isLogin); setError(''); }} type="button" className="text-sm text-muted hover:text-white transition-colors">
+                        <button onClick={() => { setIsLogin(!isLogin); setError(''); }} type="button" className="text-sm text-muted hover:text-white transition-colors py-3 px-2 inline-block">
                             {isLogin ? "Don't have an account? Register here." : "Already have clearance? Log in."}
                         </button>
                     </div>
