@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Server, Zap, Github, ArrowRight, Terminal, Activity } from 'lucide-react';
+import { Zap, Github, ArrowRight, Terminal, ShieldCheck, Box, TrendingUp, GitMerge, Network } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from './routes';
 import { usePrewarmCluster } from './hooks/usePrewarmCluster';
@@ -148,86 +148,86 @@ function TensorGrid() {
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════════
-   PAYLOAD HASHING SIMULATOR – State Machine
+   GROUND TRUTH MICROSERVICE MAP – Types & Config
    ═══════════════════════════════════════════════════════════════════ */
 
-// Deterministic mock hashes for each payload
-const MOCK_HASHES: Record<string, string> = {
-    Patient_A: '8f4e2a1b9c3d7e6f0a5b4c8d2e1f3a7b',
-    Patient_B: 'c7d9e3f2a1b8c4d5e6f0a9b3c2d1e8f4',
+type RouteKey = 'auth' | 'models' | 'predictions';
+
+interface LogEntry { text: string; color: string }
+
+const ROUTE_CONFIG: Record<RouteKey, { label: string; method: string; path: string[]; logs: LogEntry[] }> = {
+    auth: {
+        label: 'POST /auth/login',
+        method: 'POST',
+        path: ['client', 'auth', 'postgres'],
+        logs: [
+            { text: '> Initiating fetch to ml-auth-service.onrender.com...', color: '#60a5fa' },
+            { text: '> Validating credentials against Postgres users table.', color: '#a78bfa' },
+            { text: '> Credentials valid. Issuing JWT access token.', color: '#34d399' },
+            { text: '✓ 200 OK — Token issued.', color: '#22c55e' },
+        ],
+    },
+    models: {
+        label: 'GET /models',
+        method: 'GET',
+        path: ['client', 'models', 'postgres'],
+        logs: [
+            { text: '> Initiating fetch to scalable-ml-inference-platform.onrender.com...', color: '#60a5fa' },
+            { text: '> Querying Postgres ml_models table.', color: '#a78bfa' },
+            { text: '> Serializing model artifacts from Supabase storage.', color: '#facc15' },
+            { text: '✓ 200 OK — Returning model artifacts.', color: '#22c55e' },
+        ],
+    },
+    predictions: {
+        label: 'POST /predictions',
+        method: 'POST',
+        path: ['client', 'prediction', 'redis', 'postgres'],
+        logs: [
+            { text: '> Initiating fetch to ml-prediction-service-m7xo.onrender.com...', color: '#60a5fa' },
+            { text: '> Checking Redis cache for payload hash.', color: '#f87171' },
+            { text: '> Cache Miss. Executing inference pipeline.', color: '#facc15' },
+            { text: '> Persisting prediction output to Postgres.', color: '#a78bfa' },
+            { text: '✓ 201 Created — Prediction stored.', color: '#22c55e' },
+        ],
+    },
 };
 
-type SimPhase = 'idle' | 'hashing' | 'to-redis' | 'redis-check' | 'to-fastapi' | 'executing' | 'return' | 'done';
-
-interface SimState {
-    phase: SimPhase;
-    payload: string | null;
-    hash: string | null;
-    cacheResult: 'miss' | 'hit' | null;
-    latency: string;
-    cache: Set<string>; // tracks which hashes are cached
+interface MapState {
+    active: RouteKey | null;
+    phase: number; // index into the path array
+    logs: LogEntry[];
+    animating: boolean;
 }
-
-const INITIAL_SIM: SimState = {
-    phase: 'idle',
-    payload: null,
-    hash: null,
-    cacheResult: null,
-    latency: '-',
-    cache: new Set(),
-};
 
 export default function LandingPage() {
     const navigate = useNavigate();
     usePrewarmCluster();
 
-    // ── Payload Hashing Simulator state ──
-    const [sim, setSim] = useState<SimState>(INITIAL_SIM);
-    const cacheRef = useRef<Set<string>>(new Set());
+    // ── Ground Truth Microservice Map state ──
+    const [mapState, setMapState] = useState<MapState>({ active: null, phase: -1, logs: [], animating: false });
 
-    const injectPayload = useCallback((payloadName: string) => {
-        if (sim.phase !== 'idle' && sim.phase !== 'done') return;
+    const triggerRoute = useCallback((route: RouteKey) => {
+        if (mapState.animating) return;
+        const config = ROUTE_CONFIG[route];
+        setMapState({ active: route, phase: 0, logs: [], animating: true });
 
-        const hash = MOCK_HASHES[payloadName];
-        const isCached = cacheRef.current.has(hash);
-
-        // Phase 1: Hashing (300ms)
-        setSim({ phase: 'hashing', payload: payloadName, hash, cacheResult: null, latency: '-', cache: cacheRef.current });
-
-        setTimeout(() => {
-            // Phase 2: Dot traveling to Redis (400ms)
-            setSim(s => ({ ...s, phase: 'to-redis' }));
-
-            setTimeout(() => {
-                if (isCached) {
-                    // CACHE HIT path
-                    setSim(s => ({ ...s, phase: 'redis-check', cacheResult: 'hit' }));
-                    setTimeout(() => {
-                        setSim(s => ({ ...s, phase: 'return' }));
-                        setTimeout(() => {
-                            setSim(s => ({ ...s, phase: 'done', latency: '2ms' }));
-                        }, 200);
-                    }, 300);
-                } else {
-                    // CACHE MISS path
-                    setSim(s => ({ ...s, phase: 'redis-check', cacheResult: 'miss' }));
-                    setTimeout(() => {
-                        setSim(s => ({ ...s, phase: 'to-fastapi' }));
-                        setTimeout(() => {
-                            setSim(s => ({ ...s, phase: 'executing' }));
-                            setTimeout(() => {
-                                cacheRef.current.add(hash);
-                                setSim(s => ({ ...s, phase: 'return' }));
-                                setTimeout(() => {
-                                    setSim(s => ({ ...s, phase: 'done', latency: '1.2s', cache: new Set(cacheRef.current) }));
-                                }, 300);
-                            }, 1200);
-                        }, 300);
-                    }, 400);
-                }
-            }, 400);
-        }, 300);
-    }, [sim.phase]);
+        let step = 0;
+        const advance = () => {
+            if (step < config.logs.length) {
+                const currentStep = step;
+                setMapState(s => ({
+                    ...s,
+                    phase: Math.min(currentStep, config.path.length - 1),
+                    logs: [...s.logs, config.logs[currentStep]],
+                }));
+                step++;
+                setTimeout(advance, route === 'predictions' && currentStep === 1 ? 900 : 600);
+            } else {
+                setMapState(s => ({ ...s, phase: config.path.length - 1, animating: false }));
+            }
+        };
+        setTimeout(advance, 400);
+    }, [mapState.animating]);
 
     return (
         <div className="min-h-screen bg-black text-gray-100 font-sans selection:bg-blue-500/30">
@@ -302,249 +302,286 @@ export default function LandingPage() {
                 </motion.div>
             </section>
 
-            {/* ── 2. ARCHITECTURE PIPELINE ────────────────────────────── */}
+            {/* ── 2. GROUND TRUTH MICROSERVICE MAP ──────────────────── */}
             <section className="py-24 px-6 border-t border-gray-900 z-10 relative bg-black">
-                <div className="max-w-6xl mx-auto">
-                    <h2 className="text-3xl font-bold mb-16 text-center">Engineered for Scale</h2>
+                <div className="max-w-7xl mx-auto">
+                    <motion.div whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 30 }} viewport={{ once: true }} className="text-center mb-16">
+                        <h2 className="text-3xl font-bold mb-4">Ground Truth Microservice Map</h2>
+                        <p className="text-gray-400 max-w-2xl mx-auto leading-relaxed">
+                            Live architectural topology of the Render-deployed inference platform.
+                            Trigger real API routes and trace the request path through the service mesh.
+                        </p>
+                    </motion.div>
 
-                    <div className="grid md:grid-cols-3 gap-8">
-                        <motion.div
-                            whileInView={{ opacity: 1, y: 0 }}
-                            initial={{ opacity: 0, y: 30 }}
-                            viewport={{ once: true }}
-                            className="p-8 rounded-2xl bg-gray-950 border border-gray-800 hover:border-gray-700 transition-colors"
-                        >
-                            <Database className="w-10 h-10 text-blue-500 mb-6" />
-                            <h3 className="text-xl font-semibold mb-3">Dynamic Ingestion</h3>
-                            <p className="text-gray-400">Auto-detects classification vs. regression tasks, applies label encoding, and sanitizes payload sizes seamlessly.</p>
+                    <div className="grid lg:grid-cols-2 gap-10 items-start">
+
+                        {/* ── LEFT: SVG Network Map ── */}
+                        <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}
+                            className="relative bg-gray-950/80 border border-gray-800 rounded-2xl p-6 backdrop-blur-sm min-h-[500px]">
+
+                            <svg viewBox="0 0 580 440" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <filter id="glow-blue"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                                    <filter id="glow-green"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                                    <filter id="glow-purple"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                                    <filter id="glow-red"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                                </defs>
+
+                                {/* ── Static connection lines ── */}
+                                <line x1="100" y1="220" x2="230" y2="90" stroke="#1e293b" strokeWidth="1.5" />
+                                <line x1="100" y1="220" x2="230" y2="220" stroke="#1e293b" strokeWidth="1.5" />
+                                <line x1="100" y1="220" x2="230" y2="350" stroke="#1e293b" strokeWidth="1.5" />
+                                <line x1="350" y1="90" x2="470" y2="270" stroke="#1e293b" strokeWidth="1.5" />
+                                <line x1="350" y1="220" x2="470" y2="270" stroke="#1e293b" strokeWidth="1.5" />
+                                <line x1="350" y1="350" x2="470" y2="160" stroke="#1e293b" strokeWidth="1.5" />
+                                <line x1="350" y1="350" x2="470" y2="270" stroke="#1e293b" strokeWidth="1.5" />
+
+                                {/* ── Animated path traces ── */}
+                                {mapState.active === 'auth' && mapState.phase >= 0 && (
+                                    <>
+                                        <motion.line x1="100" y1="220" x2="230" y2="90" stroke="#60a5fa" strokeWidth="2" filter="url(#glow-blue)"
+                                            initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5 }} />
+                                        {mapState.phase >= 2 && (
+                                            <motion.line x1="350" y1="90" x2="470" y2="270" stroke="#a78bfa" strokeWidth="2" filter="url(#glow-purple)"
+                                                initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5 }} />
+                                        )}
+                                    </>
+                                )}
+                                {mapState.active === 'models' && mapState.phase >= 0 && (
+                                    <>
+                                        <motion.line x1="100" y1="220" x2="230" y2="220" stroke="#60a5fa" strokeWidth="2" filter="url(#glow-blue)"
+                                            initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5 }} />
+                                        {mapState.phase >= 2 && (
+                                            <motion.line x1="350" y1="220" x2="470" y2="270" stroke="#a78bfa" strokeWidth="2" filter="url(#glow-purple)"
+                                                initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5 }} />
+                                        )}
+                                    </>
+                                )}
+                                {mapState.active === 'predictions' && mapState.phase >= 0 && (
+                                    <>
+                                        <motion.line x1="100" y1="220" x2="230" y2="350" stroke="#60a5fa" strokeWidth="2" filter="url(#glow-blue)"
+                                            initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5 }} />
+                                        {mapState.phase >= 2 && (
+                                            <motion.line x1="350" y1="350" x2="470" y2="160" stroke="#f87171" strokeWidth="2" filter="url(#glow-red)"
+                                                initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5 }} />
+                                        )}
+                                        {mapState.phase >= 3 && (
+                                            <motion.line x1="350" y1="350" x2="470" y2="270" stroke="#a78bfa" strokeWidth="2" filter="url(#glow-purple)"
+                                                initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.5 }} />
+                                        )}
+                                    </>
+                                )}
+
+                                {/* ── NODE: Client (tooltip: bottom) ── */}
+                                <g>
+                                    <rect x="40" y="185" width="120" height="70" rx="14" fill="#0a0a0a"
+                                        stroke={mapState.active ? '#3b82f6' : '#1e293b'} strokeWidth="1.5" />
+                                    <text x="100" y="215" textAnchor="middle" fill="#94a3b8" fontSize="14" fontFamily="monospace">💻</text>
+                                    <text x="100" y="238" textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="monospace">Client App</text>
+                                    {mapState.active && (
+                                        <foreignObject x="30" y="260" width="140" height="30">
+                                            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+                                                style={{ fontSize: '10px', fontFamily: 'monospace', color: '#e2e8f0', textAlign: 'center', background: 'rgba(0,0,0,0.95)', border: '1px solid #374151', borderRadius: '6px', padding: '4px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                                Request Origin
+                                            </motion.div>
+                                        </foreignObject>
+                                    )}
+                                </g>
+
+                                {/* ── NODE: Auth Service (tooltip: top) ── */}
+                                <g>
+                                    <rect x="230" y="55" width="120" height="70" rx="14" fill="#0a0a0a"
+                                        stroke={mapState.active === 'auth' ? '#60a5fa' : '#1e293b'} strokeWidth="1.5" />
+                                    {mapState.active === 'auth' && <rect x="230" y="55" width="120" height="70" rx="14" fill="none" stroke="#60a5fa" strokeWidth="1.5" opacity="0.3" filter="url(#glow-blue)" />}
+                                    <text x="290" y="85" textAnchor="middle" fill="#60a5fa" fontSize="14" fontFamily="monospace">🛡️</text>
+                                    <text x="290" y="110" textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="monospace">Auth Service</text>
+                                    {mapState.active === 'auth' && (
+                                        <foreignObject x="225" y="22" width="130" height="30">
+                                            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.15 }}
+                                                style={{ fontSize: '10px', fontFamily: 'monospace', color: '#93c5fd', textAlign: 'center', background: 'rgba(0,0,0,0.95)', border: '1px solid #374151', borderRadius: '6px', padding: '4px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                                JWT & Routing
+                                            </motion.div>
+                                        </foreignObject>
+                                    )}
+                                </g>
+
+                                {/* ── NODE: Models Service (tooltip: bottom) ── */}
+                                <g>
+                                    <rect x="230" y="185" width="120" height="70" rx="14" fill="#0a0a0a"
+                                        stroke={mapState.active === 'models' ? '#a78bfa' : '#1e293b'} strokeWidth="1.5" />
+                                    {mapState.active === 'models' && <rect x="230" y="185" width="120" height="70" rx="14" fill="none" stroke="#a78bfa" strokeWidth="1.5" opacity="0.3" filter="url(#glow-purple)" />}
+                                    <text x="290" y="215" textAnchor="middle" fill="#a78bfa" fontSize="14" fontFamily="monospace">📦</text>
+                                    <text x="290" y="238" textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="monospace">Models Service</text>
+                                    {mapState.active === 'models' && (
+                                        <foreignObject x="225" y="260" width="130" height="30">
+                                            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.15 }}
+                                                style={{ fontSize: '10px', fontFamily: 'monospace', color: '#c4b5fd', textAlign: 'center', background: 'rgba(0,0,0,0.95)', border: '1px solid #374151', borderRadius: '6px', padding: '4px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                                Artifact Registry
+                                            </motion.div>
+                                        </foreignObject>
+                                    )}
+                                </g>
+
+                                {/* ── NODE: Prediction Engine (tooltip: bottom) ── */}
+                                <g>
+                                    <rect x="230" y="315" width="120" height="70" rx="14" fill="#0a0a0a"
+                                        stroke={mapState.active === 'predictions' ? '#facc15' : '#1e293b'} strokeWidth="1.5" />
+                                    {mapState.active === 'predictions' && <rect x="230" y="315" width="120" height="70" rx="14" fill="none" stroke="#facc15" strokeWidth="1.5" opacity="0.3" filter="url(#glow-blue)" />}
+                                    <text x="290" y="345" textAnchor="middle" fill="#facc15" fontSize="14" fontFamily="monospace">⚡</text>
+                                    <text x="290" y="370" textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="monospace">Prediction Engine</text>
+                                    {mapState.active === 'predictions' && (
+                                        <foreignObject x="225" y="390" width="130" height="30">
+                                            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.15 }}
+                                                style={{ fontSize: '10px', fontFamily: 'monospace', color: '#fde68a', textAlign: 'center', background: 'rgba(0,0,0,0.95)', border: '1px solid #374151', borderRadius: '6px', padding: '4px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                                Dynamic Inference
+                                            </motion.div>
+                                        </foreignObject>
+                                    )}
+                                </g>
+
+                                {/* ── NODE: Redis Cache (tooltip: right) ── */}
+                                <g>
+                                    <rect x="420" y="125" width="110" height="70" rx="14" fill="#0a0a0a"
+                                        stroke={mapState.active === 'predictions' && mapState.phase >= 2 ? '#f87171' : '#1e293b'} strokeWidth="1.5" />
+                                    <text x="475" y="155" textAnchor="middle" fill="#f87171" fontSize="14" fontFamily="monospace">⚡</text>
+                                    <text x="475" y="178" textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="monospace">Redis Cache</text>
+                                    {mapState.active === 'predictions' && mapState.phase >= 2 && (
+                                        <foreignObject x="420" y="198" width="140" height="30">
+                                            <motion.div initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
+                                                style={{ fontSize: '10px', fontFamily: 'monospace', color: '#fca5a5', textAlign: 'center', background: 'rgba(0,0,0,0.95)', border: '1px solid #374151', borderRadius: '6px', padding: '4px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                                Tier-2 Sub-ms Cache
+                                            </motion.div>
+                                        </foreignObject>
+                                    )}
+                                </g>
+
+                                {/* ── NODE: PostgreSQL (tooltip: right) ── */}
+                                <g>
+                                    <rect x="420" y="235" width="110" height="70" rx="14" fill="#0a0a0a"
+                                        stroke={mapState.phase >= 2 && mapState.active ? '#a78bfa' : '#1e293b'} strokeWidth="1.5" />
+                                    <text x="475" y="265" textAnchor="middle" fill="#a78bfa" fontSize="14" fontFamily="monospace">🗄️</text>
+                                    <text x="475" y="288" textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="monospace">PostgreSQL</text>
+                                    {mapState.phase >= 2 && mapState.active && (
+                                        <foreignObject x="420" y="308" width="140" height="30">
+                                            <motion.div initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.2 }}
+                                                style={{ fontSize: '10px', fontFamily: 'monospace', color: '#c4b5fd', textAlign: 'center', background: 'rgba(0,0,0,0.95)', border: '1px solid #374151', borderRadius: '6px', padding: '4px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                                                System of Record
+                                            </motion.div>
+                                        </foreignObject>
+                                    )}
+                                </g>
+                            </svg>
                         </motion.div>
 
-                        <motion.div
-                            whileInView={{ opacity: 1, y: 0 }}
-                            initial={{ opacity: 0, y: 30 }}
-                            transition={{ delay: 0.1 }}
-                            viewport={{ once: true }}
-                            className="p-8 rounded-2xl bg-gray-950 border border-gray-800 hover:border-gray-700 transition-colors"
-                        >
-                            <Server className="w-10 h-10 text-purple-500 mb-6" />
-                            <h3 className="text-xl font-semibold mb-3">Serverless Registry</h3>
-                            <p className="text-gray-400">Model artifacts serialized to Supabase Object Storage, indexed by a Neon Serverless PostgreSQL backend.</p>
-                        </motion.div>
+                        {/* ── RIGHT: HUD & Controls ── */}
+                        <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="space-y-6">
 
-                        <motion.div
-                            whileInView={{ opacity: 1, y: 0 }}
-                            initial={{ opacity: 0, y: 30 }}
-                            transition={{ delay: 0.2 }}
-                            viewport={{ once: true }}
-                            className="p-8 rounded-2xl bg-gray-950 border border-gray-800 hover:border-gray-700 transition-colors"
-                        >
-                            <Zap className="w-10 h-10 text-yellow-500 mb-6" />
-                            <h3 className="text-xl font-semibold mb-3">BFF Routing Pattern</h3>
-                            <p className="text-gray-400">Client-side routing direct to microservices eliminates the Nginx API gateway single point of failure.</p>
+                            {/* Action Buttons */}
+                            <div className="space-y-3">
+                                <h3 className="text-sm font-mono text-gray-500 uppercase tracking-widest mb-4">Trigger API Route</h3>
+
+                                <button id="trigger-auth-btn" onClick={() => triggerRoute('auth')} disabled={mapState.animating}
+                                    className="w-full group flex items-center gap-3 px-5 py-3.5 bg-blue-600/5 border border-blue-500/20 text-blue-400 font-mono text-sm rounded-xl hover:bg-blue-600/15 hover:border-blue-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200">
+                                    <ShieldCheck className="w-4 h-4" />
+                                    <span className="flex-1 text-left">POST /auth/login</span>
+                                    <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+
+                                <button id="trigger-models-btn" onClick={() => triggerRoute('models')} disabled={mapState.animating}
+                                    className="w-full group flex items-center gap-3 px-5 py-3.5 bg-purple-600/5 border border-purple-500/20 text-purple-400 font-mono text-sm rounded-xl hover:bg-purple-600/15 hover:border-purple-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200">
+                                    <Box className="w-4 h-4" />
+                                    <span className="flex-1 text-left">GET /models</span>
+                                    <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+
+                                <button id="trigger-predictions-btn" onClick={() => triggerRoute('predictions')} disabled={mapState.animating}
+                                    className="w-full group flex items-center gap-3 px-5 py-3.5 bg-yellow-600/5 border border-yellow-500/20 text-yellow-400 font-mono text-sm rounded-xl hover:bg-yellow-600/15 hover:border-yellow-500/40 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200">
+                                    <Zap className="w-4 h-4" />
+                                    <span className="flex-1 text-left">POST /predictions</span>
+                                    <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+                            </div>
+
+                            {/* Network Request Log Terminal */}
+                            <div className="bg-black border border-gray-800 rounded-xl overflow-hidden font-mono text-sm">
+                                <div className="flex items-center px-4 py-3 border-b border-gray-800 bg-gray-900/50">
+                                    <Terminal className="w-4 h-4 text-gray-500 mr-2" />
+                                    <span className="text-gray-500 text-xs">network_request_log</span>
+                                    {mapState.animating && (
+                                        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity }}
+                                            className="ml-auto text-[10px] text-green-400 font-bold">● LIVE</motion.span>
+                                    )}
+                                </div>
+                                <div className="p-4 min-h-[160px] space-y-2">
+                                    {mapState.logs.length === 0 ? (
+                                        <p className="text-gray-600 text-xs italic">Awaiting route trigger...</p>
+                                    ) : (
+                                        <AnimatePresence>
+                                            {mapState.logs.map((log, i) => (
+                                                <motion.p key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }}
+                                                    className="text-xs leading-relaxed" style={{ color: log.color }}>
+                                                    {log.text}
+                                                </motion.p>
+                                            ))}
+                                        </AnimatePresence>
+                                    )}
+                                </div>
+                            </div>
                         </motion.div>
                     </div>
                 </div>
             </section>
 
-            {/* ── 3. INTERACTIVE PAYLOAD HASHING SIMULATOR ──────────── */}
-            <section className="py-24 px-6 bg-gray-950 border-t border-gray-900 z-10 relative">
-                <div className="max-w-5xl mx-auto">
-                    <motion.div
-                        whileInView={{ opacity: 1, y: 0 }}
-                        initial={{ opacity: 0, y: 30 }}
-                        viewport={{ once: true }}
-                        className="text-center mb-16"
-                    >
-                        <h2 className="text-3xl font-bold mb-4">Two-Tier Inference Caching</h2>
+            {/* ── 3. SUPPORTED MODEL ARCHITECTURES ─────────────────── */}
+            <section className="py-24 px-6 border-t border-gray-900 z-10 relative bg-black">
+                <div className="max-w-6xl mx-auto">
+                    <motion.div whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 30 }} viewport={{ once: true }} className="text-center mb-16">
+                        <h2 className="text-3xl font-bold mb-4">Supported Model Architectures</h2>
                         <p className="text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                            Why execute a Random Forest tree traversal twice? Inject identical payloads and watch
-                            the SHA-256 hash resolve from Redis in under 2ms.
+                            Train, serialize, and deploy production-grade models across four battle-tested algorithmic families.
                         </p>
                     </motion.div>
 
-                    {/* Payload Injector Buttons */}
-                    <div className="flex items-center justify-center gap-4 mb-12">
-                        <button
-                            id="inject-patient-a-btn"
-                            onClick={() => injectPayload('Patient_A')}
-                            disabled={sim.phase !== 'idle' && sim.phase !== 'done'}
-                            className="group flex items-center gap-2.5 px-6 py-3 bg-blue-600/10 border border-blue-500/30
-                                       text-blue-400 font-mono text-sm rounded-lg
-                                       hover:bg-blue-600/20 hover:border-blue-500/50
-                                       disabled:opacity-40 disabled:cursor-not-allowed
-                                       transition-all duration-200"
-                        >
-                            <Activity className="w-4 h-4" />
-                            Inject Payload: Patient_A
-                        </button>
-                        <button
-                            id="inject-patient-b-btn"
-                            onClick={() => injectPayload('Patient_B')}
-                            disabled={sim.phase !== 'idle' && sim.phase !== 'done'}
-                            className="group flex items-center gap-2.5 px-6 py-3 bg-purple-600/10 border border-purple-500/30
-                                       text-purple-400 font-mono text-sm rounded-lg
-                                       hover:bg-purple-600/20 hover:border-purple-500/50
-                                       disabled:opacity-40 disabled:cursor-not-allowed
-                                       transition-all duration-200"
-                        >
-                            <Activity className="w-4 h-4" />
-                            Inject Payload: Patient_B
-                        </button>
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {/* Random Forest */}
+                        <motion.div whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }}
+                            whileHover={{ scale: 1.02, borderColor: '#3b82f6' }} transition={{ duration: 0.25 }}
+                            className="group p-6 rounded-2xl border border-gray-800 bg-gray-950/60 backdrop-blur-sm cursor-default">
+                            <Network className="w-8 h-8 text-blue-500 mb-4 group-hover:drop-shadow-[0_0_8px_rgba(59,130,246,0.5)] transition-all duration-300" />
+                            <h3 className="text-lg font-semibold text-white mb-1">Random Forest</h3>
+                            <p className="text-xs font-mono text-blue-400/70 mb-3">Ensemble Bagging</p>
+                            <p className="text-sm text-gray-400 leading-relaxed">Robust parallel tree execution for high-variance datasets.</p>
+                        </motion.div>
 
-                    {/* Hash Display */}
-                    <AnimatePresence mode="wait">
-                        {sim.hash && (
-                            <motion.div
-                                key={sim.hash}
-                                initial={{ opacity: 0, y: -5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                                className="text-center mb-10 font-mono text-xs"
-                            >
-                                <span className="text-gray-500">SHA-256 → </span>
-                                <span className="text-blue-400/80 tracking-wider">{sim.hash.slice(0, 16)}...</span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                        {/* XGBoost */}
+                        <motion.div whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }} transition={{ delay: 0.05 }}
+                            whileHover={{ scale: 1.02, borderColor: '#a855f7' }}
+                            className="group p-6 rounded-2xl border border-gray-800 bg-gray-950/60 backdrop-blur-sm cursor-default">
+                            <Zap className="w-8 h-8 text-purple-500 mb-4 group-hover:drop-shadow-[0_0_8px_rgba(168,85,247,0.5)] transition-all duration-300" />
+                            <h3 className="text-lg font-semibold text-white mb-1">XGBoost</h3>
+                            <p className="text-xs font-mono text-purple-400/70 mb-3">Gradient Boosting</p>
+                            <p className="text-sm text-gray-400 leading-relaxed">Extreme performance and auto-pruning for tabular data supremacy.</p>
+                        </motion.div>
 
-                    {/* ── ANIMATED FLOWCHART ──────────────────────────────── */}
-                    <div className="relative flex items-center justify-between max-w-3xl mx-auto px-4 py-8">
+                        {/* Logistic Regression */}
+                        <motion.div whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }} transition={{ delay: 0.1 }}
+                            whileHover={{ scale: 1.02, borderColor: '#22c55e' }}
+                            className="group p-6 rounded-2xl border border-gray-800 bg-gray-950/60 backdrop-blur-sm cursor-default">
+                            <TrendingUp className="w-8 h-8 text-green-500 mb-4 group-hover:drop-shadow-[0_0_8px_rgba(34,197,94,0.5)] transition-all duration-300" />
+                            <h3 className="text-lg font-semibold text-white mb-1">Logistic Regression</h3>
+                            <p className="text-xs font-mono text-green-400/70 mb-3">Linear Baseline</p>
+                            <p className="text-sm text-gray-400 leading-relaxed">Lightning-fast, highly interpretable probabilistic classification.</p>
+                        </motion.div>
 
-                        {/* Connection lines (behind nodes) */}
-                        <div className="absolute top-1/2 left-[16.67%] right-[16.67%] h-[1px] bg-gray-800 -translate-y-1/2" />
-
-                        {/* Animated traveling dot */}
-                        <AnimatePresence>
-                            {(sim.phase === 'to-redis' || sim.phase === 'to-fastapi' || sim.phase === 'return') && (
-                                <motion.div
-                                    key={sim.phase}
-                                    className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full z-20"
-                                    style={{
-                                        background: sim.cacheResult === 'hit' ? '#22c55e' : '#3b82f6',
-                                        boxShadow: `0 0 12px ${sim.cacheResult === 'hit' ? 'rgba(34,197,94,0.6)' : 'rgba(59,130,246,0.6)'}`,
-                                    }}
-                                    initial={{
-                                        left: sim.phase === 'to-redis' ? '16.67%'
-                                            : sim.phase === 'to-fastapi' ? '50%'
-                                                : sim.cacheResult === 'hit' ? '50%' : '83.33%',
-                                    }}
-                                    animate={{
-                                        left: sim.phase === 'to-redis' ? '50%'
-                                            : sim.phase === 'to-fastapi' ? '83.33%'
-                                                : '16.67%',
-                                    }}
-                                    transition={{ duration: sim.phase === 'return' && sim.cacheResult === 'hit' ? 0.15 : 0.35, ease: 'easeInOut' }}
-                                />
-                            )}
-                        </AnimatePresence>
-
-                        {/* NODE 1: Client */}
-                        <div className="relative z-10 flex flex-col items-center gap-2 w-1/3">
-                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${sim.phase === 'done' ? 'border-green-500/40 bg-green-500/5 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
-                                : 'border-gray-700 bg-gray-900/50'
-                                }`}>
-                                <Terminal className={`w-6 h-6 transition-colors duration-300 ${sim.phase === 'done' ? 'text-green-400' : 'text-gray-500'
-                                    }`} />
-                            </div>
-                            <span className="text-[11px] font-mono text-gray-500 tracking-wider uppercase">Client</span>
-                            {sim.phase === 'done' && (
-                                <motion.span
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className={`text-[10px] font-mono font-bold ${sim.latency === '2ms' ? 'text-green-400' : 'text-yellow-400'
-                                        }`}
-                                >
-                                    {sim.latency}
-                                </motion.span>
-                            )}
-                        </div>
-
-                        {/* NODE 2: Redis Tier-2 */}
-                        <div className="relative z-10 flex flex-col items-center gap-2 w-1/3">
-                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${sim.phase === 'redis-check' && sim.cacheResult === 'hit'
-                                ? 'border-green-500/50 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
-                                : sim.phase === 'redis-check' && sim.cacheResult === 'miss'
-                                    ? 'border-yellow-500/50 bg-yellow-500/10 shadow-[0_0_20px_rgba(234,179,8,0.2)]'
-                                    : 'border-gray-700 bg-gray-900/50'
-                                }`}>
-                                <Database className={`w-6 h-6 transition-colors duration-300 ${sim.phase === 'redis-check' && sim.cacheResult === 'hit' ? 'text-green-400'
-                                    : sim.phase === 'redis-check' && sim.cacheResult === 'miss' ? 'text-yellow-400'
-                                        : 'text-gray-500'
-                                    }`} />
-                            </div>
-                            <span className="text-[11px] font-mono text-gray-500 tracking-wider uppercase">Redis Tier-2</span>
-                            {sim.phase === 'redis-check' && (
-                                <motion.span
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className={`text-[10px] font-mono font-bold ${sim.cacheResult === 'hit' ? 'text-green-400' : 'text-yellow-400'
-                                        }`}
-                                >
-                                    {sim.cacheResult === 'hit' ? '● HIT' : '○ MISS'}
-                                </motion.span>
-                            )}
-                        </div>
-
-                        {/* NODE 3: FastAPI Worker */}
-                        <div className="relative z-10 flex flex-col items-center gap-2 w-1/3">
-                            <div className={`w-16 h-16 rounded-xl border flex items-center justify-center transition-all duration-300 ${sim.phase === 'executing'
-                                ? 'border-blue-500/50 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.2)]'
-                                : 'border-gray-700 bg-gray-900/50'
-                                }`}>
-                                <Server className={`w-6 h-6 transition-colors duration-300 ${sim.phase === 'executing' ? 'text-blue-400 animate-pulse' : 'text-gray-500'
-                                    }`} />
-                            </div>
-                            <span className="text-[11px] font-mono text-gray-500 tracking-wider uppercase">FastAPI Worker</span>
-                            {sim.phase === 'executing' && (
-                                <motion.span
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: [0.4, 1, 0.4] }}
-                                    transition={{ duration: 1.2, repeat: Infinity }}
-                                    className="text-[10px] font-mono text-blue-400 font-bold"
-                                >
-                                    Executing...
-                                </motion.span>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Terminal Log */}
-                    <div className="max-w-3xl mx-auto mt-8">
-                        <div className="bg-black border border-gray-800 rounded-xl overflow-hidden font-mono text-sm">
-                            <div className="flex items-center px-4 py-3 border-b border-gray-800 bg-gray-900/50">
-                                <Terminal className="w-4 h-4 text-gray-500 mr-2" />
-                                <span className="text-gray-500">inference_pipeline_logs</span>
-                            </div>
-                            <div className="p-5 space-y-3 text-xs">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Payload:</span>
-                                    <span className="text-white/70">{sim.payload ?? '—'}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Hash:</span>
-                                    <span className="text-blue-400/70 tracking-wider">
-                                        {sim.hash ? `${sim.hash.slice(0, 16)}...` : '—'}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">Cache:</span>
-                                    <span className={`font-bold ${sim.cacheResult === 'hit' ? 'text-green-400'
-                                        : sim.cacheResult === 'miss' ? 'text-yellow-400'
-                                            : 'text-gray-600'
-                                        }`}>
-                                        {sim.cacheResult ? sim.cacheResult.toUpperCase() : '—'}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center border-t border-gray-800 pt-3">
-                                    <span className="text-gray-500">Latency:</span>
-                                    <span className={`font-bold text-sm ${sim.latency === '2ms' ? 'text-green-400' : sim.latency === '1.2s' ? 'text-yellow-400' : 'text-gray-600'
-                                        }`}>
-                                        {sim.latency}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Decision Tree */}
+                        <motion.div whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }} transition={{ delay: 0.15 }}
+                            whileHover={{ scale: 1.02, borderColor: '#f59e0b' }}
+                            className="group p-6 rounded-2xl border border-gray-800 bg-gray-950/60 backdrop-blur-sm cursor-default">
+                            <GitMerge className="w-8 h-8 text-amber-500 mb-4 group-hover:drop-shadow-[0_0_8px_rgba(245,158,11,0.5)] transition-all duration-300" />
+                            <h3 className="text-lg font-semibold text-white mb-1">Decision Tree</h3>
+                            <p className="text-xs font-mono text-amber-400/70 mb-3">Non-linear Splits</p>
+                            <p className="text-sm text-gray-400 leading-relaxed">Fully explainable, rule-based algorithmic routing.</p>
+                        </motion.div>
                     </div>
                 </div>
             </section>
@@ -559,3 +596,4 @@ export default function LandingPage() {
         </div>
     );
 }
+
