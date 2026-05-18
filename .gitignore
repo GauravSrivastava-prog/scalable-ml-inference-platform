@@ -27,3 +27,6 @@ model-service/app/storage/
 # Datasets
 *.csv
 venv/
+
+generate_report.py
+Inference_Studio_Architectural_Report.pdf

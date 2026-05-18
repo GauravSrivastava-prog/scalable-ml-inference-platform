@@ -175,22 +175,28 @@ class ModelService:
             # --- NEW SUPABASE UPLOAD LOGIC ---
             url: str = os.environ.get("SUPABASE_URL")
             key: str = os.environ.get("SUPABASE_KEY")
-            supabase = create_client(url, key)
             
-            # Cloud path: e.g., user_id/model_name/v1.joblib
-            cloud_path = f"{user.id}/{data.name}/v{next_version}.joblib"
-            
-            # Upload to Supabase
-            with open(model_file_path, "rb") as f:
-                supabase.storage.from_("models").upload(
-                    file=f,
-                    path=cloud_path,
-                    file_options={"content-type": "application/octet-stream"}
-                )
+            if url and key:
+                supabase = create_client(url, key)
+                
+                # Cloud path: e.g., user_id/model_name/v1.joblib
+                cloud_path = f"{user.id}/{data.name}/v{next_version}.joblib"
+                
+                # Upload to Supabase
+                with open(model_file_path, "rb") as f:
+                    supabase.storage.from_("models").upload(
+                        file=f,
+                        path=cloud_path,
+                        file_options={"content-type": "application/octet-stream"}
+                    )
+                
+                model.file_path = cloud_path  # Save cloud path to DB
+                logger.info(f"Model trained and uploaded to Supabase: {model.name} v{model.version}")
+            else:
+                logger.info(f"Supabase credentials not found. Using local docker volume storage: {model.file_path}")
             
             model.status = "ready"
             model.metrics = metrics
-            model.file_path = cloud_path  # Save cloud path to DB
             # ---------------------------------
             
             logger.info(
