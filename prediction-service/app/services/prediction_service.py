@@ -159,13 +159,19 @@ class PredictionService:
                 logger.info("[TIER 1 HIT] Loading model instantly from RAM")
                 model_artifact = IN_MEMORY_MODEL_CACHE[model.file_path]
             else:
-                logger.info("[TIER 1 MISS] Downloading model from Supabase...")
                 url: str = os.environ.get("SUPABASE_URL")
                 key: str = os.environ.get("SUPABASE_KEY")
-                supabase = create_client(url, key)
-
-                file_bytes = supabase.storage.from_("models").download(model.file_path)
-                model_artifact = joblib.load(io.BytesIO(file_bytes))
+                
+                if url and key:
+                    logger.info("[TIER 1 MISS] Downloading model from Supabase...")
+                    supabase = create_client(url, key)
+                    file_bytes = supabase.storage.from_("models").download(model.file_path)
+                    model_artifact = joblib.load(io.BytesIO(file_bytes))
+                else:
+                    logger.info("[TIER 1 MISS] Loading model from local Docker volume...")
+                    # Build absolute path inside the prediction-service container
+                    local_path = os.path.join("/app/storage", model.file_path)
+                    model_artifact = joblib.load(local_path)
                 
                 # Save it to RAM so we never have to download it again
                 IN_MEMORY_MODEL_CACHE[model.file_path] = model_artifact
@@ -356,13 +362,18 @@ class PredictionService:
                 logger.info("[TIER 1 HIT] Loading model instantly from RAM")
                 model_artifact = IN_MEMORY_MODEL_CACHE[model.file_path]
             else:
-                logger.info("[TIER 1 MISS] Downloading model from Supabase...")
                 url: str = os.environ.get("SUPABASE_URL")
                 key: str = os.environ.get("SUPABASE_KEY")
-                supabase = create_client(url, key)
-
-                file_bytes = supabase.storage.from_("models").download(model.file_path)
-                model_artifact = joblib.load(io.BytesIO(file_bytes))
+                
+                if url and key:
+                    logger.info("[TIER 1 MISS] Downloading model from Supabase...")
+                    supabase = create_client(url, key)
+                    file_bytes = supabase.storage.from_("models").download(model.file_path)
+                    model_artifact = joblib.load(io.BytesIO(file_bytes))
+                else:
+                    logger.info("[TIER 1 MISS] Loading model from local Docker volume...")
+                    local_path = os.path.join("/app/storage", model.file_path)
+                    model_artifact = joblib.load(local_path)
                 
                 IN_MEMORY_MODEL_CACHE[model.file_path] = model_artifact
                 

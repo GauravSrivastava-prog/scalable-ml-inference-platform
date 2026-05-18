@@ -1,6 +1,7 @@
-const AUTH_BASE = "https://ml-auth-service.onrender.com";
-const MODEL_BASE = "https://scalable-ml-inference-platform.onrender.com";
-const PREDICT_BASE = "https://ml-prediction-service-m7xo.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:9000";
+const AUTH_BASE = API_BASE;
+const MODEL_BASE = API_BASE;
+const PREDICT_BASE = API_BASE;
 
 function getBaseUrl(endpoint: string): string {
     if (endpoint.startsWith('/api/v1/auth')) return AUTH_BASE;

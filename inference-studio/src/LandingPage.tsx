@@ -161,7 +161,7 @@ const ROUTE_CONFIG: Record<RouteKey, { label: string; method: string; path: stri
         method: 'POST',
         path: ['client', 'auth', 'postgres'],
         logs: [
-            { text: '> Initiating fetch to ml-auth-service.onrender.com...', color: '#60a5fa' },
+            { text: '> Initiating fetch to nginx-gateway → /api/v1/auth/login...', color: '#60a5fa' },
             { text: '> Validating credentials against Postgres users table.', color: '#a78bfa' },
             { text: '> Credentials valid. Issuing JWT access token.', color: '#34d399' },
             { text: '✓ 200 OK — Token issued.', color: '#22c55e' },
@@ -172,7 +172,7 @@ const ROUTE_CONFIG: Record<RouteKey, { label: string; method: string; path: stri
         method: 'GET',
         path: ['client', 'models', 'postgres'],
         logs: [
-            { text: '> Initiating fetch to scalable-ml-inference-platform.onrender.com...', color: '#60a5fa' },
+            { text: '> Initiating fetch to nginx-gateway → /api/v1/models...', color: '#60a5fa' },
             { text: '> Querying Postgres ml_models table.', color: '#a78bfa' },
             { text: '> Serializing model artifacts from Supabase storage.', color: '#facc15' },
             { text: '✓ 200 OK — Returning model artifacts.', color: '#22c55e' },
@@ -183,7 +183,7 @@ const ROUTE_CONFIG: Record<RouteKey, { label: string; method: string; path: stri
         method: 'POST',
         path: ['client', 'prediction', 'redis', 'postgres'],
         logs: [
-            { text: '> Initiating fetch to ml-prediction-service-m7xo.onrender.com...', color: '#60a5fa' },
+            { text: '> Initiating fetch to nginx-gateway → /api/v1/predictions...', color: '#60a5fa' },
             { text: '> Checking Redis cache for payload hash.', color: '#f87171' },
             { text: '> Cache Miss. Executing inference pipeline.', color: '#facc15' },
             { text: '> Persisting prediction output to Postgres.', color: '#a78bfa' },
