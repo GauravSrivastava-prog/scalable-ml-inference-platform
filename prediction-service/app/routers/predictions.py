@@ -26,10 +26,10 @@ router = APIRouter()
 # 1. STATIC ROUTES (Must go at the top so they don't get swallowed)
 # -------------------------------------------------------------------
 @router.get("/telemetry/live")
-async def get_live_telemetry():
-    """Proxies requests to Prometheus and returns formatted metrics for the UI."""
+async def get_live_telemetry(db: AsyncSession = Depends(get_db)):
+    """Returns formatted metrics for the UI.
+    Strategy: Try Prometheus first (Docker/local), fall back to direct DB/Redis (Render prod)."""
     
-    # Read from Render Environment, fallback to local Docker
     base_url = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
     prometheus_url = f"{base_url}/api/v1/query"
     
@@ -41,9 +41,10 @@ async def get_live_telemetry():
         "system_healthy": True
     }
 
+    prometheus_ok = False
+
     try:
-        # Clean, unauthenticated request to your own Render Prometheus instance
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=3.0) as client:
             # 1. Get Total Predictions
             res_total = await client.get(prometheus_url, params={'query': 'sum(inference_requests_total)'})
             if res_total.status_code == 200 and res_total.json()['data']['result']:
@@ -66,9 +67,65 @@ async def get_live_telemetry():
                 val = res_cache.json()['data']['result'][0]['value'][1]
                 telemetry["cache_hit_rate"] = round(float(val), 1) if val != 'NaN' else 0.0
 
+        if telemetry["total_predictions"] > 0 or telemetry["current_rps"] > 0:
+            prometheus_ok = True
+
     except Exception as e:
-        logger.error(f"Prometheus proxy failed: {e}")
-        telemetry["system_healthy"] = False
+        logger.warning(f"Prometheus proxy failed (falling back to DB): {e}")
+
+    # ── DATABASE FALLBACK ─────────────────────────────────────────────
+    if not prometheus_ok:
+        try:
+            from sqlalchemy import func, text as sa_text, select
+            from ml_platform_core.models.prediction import Prediction
+            from app.core.redis_client import redis_cache
+
+            # Total completed predictions
+            total_result = await db.execute(
+                select(func.count()).select_from(Prediction).where(Prediction.status == "completed")
+            )
+            telemetry["total_predictions"] = total_result.scalar() or 0
+
+            # P95 latency (ms)
+            p95_result = await db.execute(
+                sa_text(
+                    "SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) "
+                    "FROM predictions WHERE status = 'completed' AND latency_ms IS NOT NULL"
+                )
+            )
+            p95_val = p95_result.scalar()
+            telemetry["p95_latency_ms"] = round(float(p95_val), 2) if p95_val is not None else 0.0
+
+            # Current RPS
+            rps_result = await db.execute(
+                sa_text(
+                    "SELECT COUNT(*) FROM predictions "
+                    "WHERE created_at > NOW() - INTERVAL '60 seconds'"
+                )
+            )
+            recent_count = rps_result.scalar() or 0
+            telemetry["current_rps"] = round(recent_count / 60.0, 2)
+
+            # Cache hit rate from Redis
+            if redis_cache.client:
+                try:
+                    total_cache_hits = 0
+                    async for key in redis_cache.client.scan_iter("user_stats:*", count=100):
+                        hits_raw = await redis_cache.client.hget(key, "pending_cache_hits")
+                        total_cache_hits += int(hits_raw) if hits_raw else 0
+                    
+                    total_all = telemetry["total_predictions"] + total_cache_hits
+                    if total_all > 0:
+                        telemetry["cache_hit_rate"] = round((total_cache_hits / total_all) * 100, 1)
+                except Exception as redis_err:
+                    logger.warning(f"Redis cache hit rate lookup failed: {redis_err}")
+
+            telemetry["system_healthy"] = True
+            logger.info("[TELEMETRY] Served metrics from PostgreSQL/Redis fallback.")
+
+        except Exception as db_err:
+            logger.error(f"Database telemetry fallback failed: {db_err}")
+            telemetry["system_healthy"] = False
 
     return telemetry
 
