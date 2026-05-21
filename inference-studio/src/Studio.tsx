@@ -38,6 +38,13 @@ export default function Studio() {
     const [algorithm, setAlgorithm] = useState('random_forest');
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // --- PIPELINE POLLING STATE ---
+    const [activeModelId, setActiveModelId] = useState<string | null>(null);
+    const [trainingStatus, setTrainingStatus] = useState<string>('idle');
+    const [trainedModelName, setTrainedModelName] = useState('');
+    const [showSuccessToast, setShowSuccessToast] = useState(false);
+    const [trainingError, setTrainingError] = useState<string | null>(null);
+
     // Fetch Models & User Identity
     const fetchDashboardData = async () => {
         try {
@@ -65,6 +72,47 @@ export default function Studio() {
     useEffect(() => {
         fetchDashboardData();
     }, []);
+
+    // Background polling for active training job
+    useEffect(() => {
+        if (!activeModelId || trainingStatus !== 'training') return;
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const res = await apiFetch(`/api/v1/models/${activeModelId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'ready') {
+                        clearInterval(pollInterval);
+                        setTrainingStatus('ready');
+                        setActiveModelId(null);
+                        setIsProcessing(false);
+                        setShowSuccessToast(true);
+                        setTimeout(() => setShowSuccessToast(false), 5000);
+                        await fetchDashboardData();
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        setTrainingStatus('failed');
+                        setActiveModelId(null);
+                        setIsProcessing(false);
+                        setTrainingError("Model training failed on Celery cluster.");
+                        alert("Training Error: Model training failed on the cluster worker.");
+                        await fetchDashboardData();
+                    } else {
+                        setTrainingStatus(data.status);
+                    }
+                } else {
+                    console.error("Polling error: endpoint returned status", res.status);
+                }
+            } catch (err) {
+                console.error("Failed to poll model training status:", err);
+            }
+        }, 3000);
+
+        return () => {
+            clearInterval(pollInterval);
+        };
+    }, [activeModelId, trainingStatus]);
 
     const handleDeleteModel = async (e: React.MouseEvent, modelId: string) => {
         e.stopPropagation();
@@ -100,12 +148,18 @@ export default function Studio() {
     const handleTrainModel = async () => {
         if (!datasetId || !modelName || !targetColumn) return;
         setIsProcessing(true);
+        setTrainingError(null);
 
         try {
             const payload = { name: modelName, dataset_id: datasetId, algorithm: algorithm, target_column: targetColumn };
             const response = await apiFetch('/api/v1/models/train', { method: 'POST', body: JSON.stringify(payload) });
 
             if (!response.ok) throw new Error((await response.json()).detail || 'Training failed due to invalid parameters.');
+
+            const data = await response.json();
+            setActiveModelId(data.model_id);
+            setTrainingStatus(data.status || 'training');
+            setTrainedModelName(modelName);
 
             setIsModalOpen(false);
             setModalStep('upload');
@@ -117,7 +171,6 @@ export default function Studio() {
             await fetchDashboardData();
         } catch (err: any) {
             alert(`Training Error: ${err.message}`);
-        } finally {
             setIsProcessing(false);
         }
     };
@@ -322,6 +375,45 @@ export default function Studio() {
                         </div>
                     </div>
 
+                    {/* ACTIVE TRAINING PIPELINE HUD */}
+                    <AnimatePresence>
+                        {activeModelId && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+                                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="bg-gradient-to-r from-accent/10 via-surface/40 to-white/[0.02] border border-accent/20 rounded-2xl p-5 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_0_30px_rgba(59,130,246,0.05)]">
+                                    <div className="flex items-start space-x-4">
+                                        <div className="h-10 w-10 bg-accent/10 border border-accent/30 rounded-xl flex items-center justify-center shrink-0">
+                                            <Cpu className="h-5 w-5 text-accent animate-pulse" />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-mono text-accent uppercase tracking-wider block mb-1">Active Celery Pipeline Running</span>
+                                            <h4 className="text-sm font-semibold text-white">Training "{trainedModelName}"</h4>
+                                            <p className="text-xs text-muted mt-0.5">Algorithm: <span className="capitalize text-white/70">{algorithm.replace('_', ' ')}</span></p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-4 self-end md:self-auto shrink-0 font-mono">
+                                        <div className="text-right">
+                                            <span className="text-[10px] text-muted uppercase tracking-wider block">Status</span>
+                                            <span className="text-xs text-accent font-medium capitalize flex items-center gap-1.5 justify-end">
+                                                <span className="h-1.5 w-1.5 bg-accent rounded-full animate-ping" />
+                                                {trainingStatus}
+                                            </span>
+                                        </div>
+                                        <div className="h-8 w-[1px] bg-white/10 hidden sm:block" />
+                                        <div className="flex items-center space-x-2 bg-white/5 border border-white/5 px-3 py-2 rounded-lg">
+                                            <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
+                                            <span className="text-[10px] text-white/90">Polling cluster (3s)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     {isLoading && (
                         <div className="flex justify-center items-center h-64">
                             <div className="h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
@@ -382,6 +474,31 @@ export default function Studio() {
                     )}
                 </div>
             </main>
+
+            {/* SUCCESS NOTIFICATION TOAST */}
+            <AnimatePresence>
+                {showSuccessToast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                        className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-surface border border-emerald-500/20 rounded-2xl p-4 shadow-[0_10px_30px_rgba(16,185,129,0.1)] backdrop-blur-xl"
+                    >
+                        <div className="flex items-start space-x-3">
+                            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl shrink-0">
+                                <CheckCircle2 className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h4 className="text-sm font-medium text-white">Pipeline Complete</h4>
+                                <p className="text-xs text-muted mt-0.5">Model "{trainedModelName}" has been trained successfully and deployed to the Supabase registry.</p>
+                            </div>
+                            <button onClick={() => setShowSuccessToast(false)} className="text-muted hover:text-white p-1 rounded-md transition-colors shrink-0 animate-pulse">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
