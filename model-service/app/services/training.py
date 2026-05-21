@@ -29,9 +29,10 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import xgboost as xgb
 from celery import Celery
 import asyncio
-from supabase import create_client
 from sqlalchemy import update
-from ml_platform_core.database import async_session_factory
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
+from supabase import create_client
 from ml_platform_core.models.ml_model import MLModel
 
 logger = logging.getLogger(__name__)
@@ -242,8 +243,37 @@ def run_full_training_pipeline(
     model_name: str, 
     next_version: int
 ):
+    # --- ISOLATED DATABASE UPDATER ---
+    async def _update_db(final_status: str, final_metrics: dict = None, final_path: str = None):
+        db_url = os.environ.get("DATABASE_URL")
+        # Ensure it uses the asyncpg driver
+        if db_url and db_url.startswith("postgresql://"):
+            db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
+        
+        # Create a fresh engine that DOES NOT pool connections (safe for Celery & asyncio.run)
+        engine = create_async_engine(db_url, poolclass=NullPool)
+        
+        try:
+            async with engine.begin() as conn:
+                if final_status == "ready":
+                    await conn.execute(
+                        update(MLModel)
+                        .where(MLModel.id == model_id_str)
+                        .values(status="ready", metrics=final_metrics, file_path=final_path)
+                    )
+                else:
+                    await conn.execute(
+                        update(MLModel)
+                        .where(MLModel.id == model_id_str)
+                        .values(status="failed")
+                    )
+        finally:
+            # Safely tear down the engine before the asyncio loop closes
+            await engine.dispose()
+    # ---------------------------------
+
     try:
-        # 1. Run the Heavy ML Math (using your existing function)
+        # 1. Run the Heavy ML Math
         metrics = train_model(
             dataset_path=dataset_path,
             target_column=target_column,
@@ -269,28 +299,10 @@ def run_full_training_pipeline(
         else:
             cloud_path = model_save_path  # Local fallback
 
-        # 3. Update Postgres to "ready"
-        async def _update_success():
-            async with async_session_factory() as session:
-                await session.execute(
-                    update(MLModel)
-                    .where(MLModel.id == model_id_str)
-                    .values(status="ready", metrics=metrics, file_path=cloud_path)
-                )
-                await session.commit()
-                
-        asyncio.run(_update_success())
+        # 3. Update Postgres using the isolated async function
+        asyncio.run(_update_db("ready", metrics, cloud_path))
 
     except Exception as exc:
         logger.error(f"Worker Training Failed: {str(exc)}")
-        # If it fails, update Postgres to "failed"
-        async def _update_failure():
-            async with async_session_factory() as session:
-                await session.execute(
-                    update(MLModel)
-                    .where(MLModel.id == model_id_str)
-                    .values(status="failed")
-                )
-                await session.commit()
-                
-        asyncio.run(_update_failure())
+        # If it fails, securely update Postgres to "failed"
+        asyncio.run(_update_db("failed"))
