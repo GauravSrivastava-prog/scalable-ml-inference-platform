@@ -203,7 +203,7 @@ def train_model(
         "target_encoder": target_encoder,
         "task_type": task_type,
     }
-    joblib.dump(model_artifact, model_save_path)
+    joblib.dump(model_artifact, model_save_path, compress=3)
     metrics["feature_columns"] = list(X.columns)
     metrics["sample_data"] = X.head(3).fillna("").to_dict(orient="records")
     
