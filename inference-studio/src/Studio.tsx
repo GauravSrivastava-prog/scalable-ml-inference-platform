@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Database, Plus, Search, Activity, Box, Clock, List, UploadCloud, X, Trash2, CheckCircle2, User, Cpu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +17,55 @@ interface BackendModel {
         feature_columns?: string[];
     } | null;
     created_at: string;
+}
+
+/** Inline Training HUD — overlays model cards with status === 'training' */
+function TrainingHUD({ modelName, algorithm }: { modelName: string; algorithm: string }) {
+    const [elapsed, setElapsed] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => setElapsed(s => s + 1), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    const timeStr = mins > 0 ? `T+${mins}m ${secs}s` : `T+${secs}s`;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl p-4"
+        >
+            {/* Spinning ring */}
+            <div className="relative mb-3">
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+                    className="h-10 w-10 rounded-full border-2 border-accent/30 border-t-accent"
+                />
+                <Cpu className="absolute inset-0 m-auto h-4 w-4 text-accent" />
+            </div>
+
+            <span className="text-[10px] font-mono text-accent uppercase tracking-widest mb-1">
+                Celery Pipeline Active
+            </span>
+            <p className="text-xs text-white font-medium truncate max-w-[90%] text-center">
+                {modelName}
+            </p>
+            <p className="text-[10px] text-muted capitalize mt-0.5">
+                {algorithm.replace('_', ' ')}
+            </p>
+
+            {/* Live timer */}
+            <div className="mt-3 flex items-center space-x-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg">
+                <span className="h-1.5 w-1.5 bg-accent rounded-full animate-ping" />
+                <span className="text-[11px] font-mono text-accent">{timeStr}</span>
+            </div>
+            <span className="text-[9px] text-muted/50 mt-1.5 font-mono">Polling every 3s</span>
+        </motion.div>
+    );
 }
 
 export default function Studio() {
@@ -38,12 +87,11 @@ export default function Studio() {
     const [algorithm, setAlgorithm] = useState('random_forest');
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // --- PIPELINE POLLING STATE ---
-    const [activeModelId, setActiveModelId] = useState<string | null>(null);
-    const [trainingStatus, setTrainingStatus] = useState<string>('idle');
+    // --- SMART POLLING STATE ---
     const [trainedModelName, setTrainedModelName] = useState('');
     const [showSuccessToast, setShowSuccessToast] = useState(false);
-    const [trainingError, setTrainingError] = useState<string | null>(null);
+    const prevModelStatusesRef = useRef<Record<string, string>>({});
+    const hasTrainingModels = models.some(m => m.status === 'training');
 
     // Fetch Models & User Identity
     const fetchDashboardData = async () => {
@@ -73,46 +121,49 @@ export default function Studio() {
         fetchDashboardData();
     }, []);
 
-    // Background polling for active training job
+    // Smart polling: watches the models array for any status === 'training'
     useEffect(() => {
-        if (!activeModelId || trainingStatus !== 'training') return;
+        if (!hasTrainingModels) return;
 
         const pollInterval = setInterval(async () => {
             try {
-                const res = await apiFetch(`/api/v1/models/${activeModelId}`);
+                const res = await apiFetch('/api/v1/models/');
                 if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === 'ready') {
-                        clearInterval(pollInterval);
-                        setTrainingStatus('ready');
-                        setActiveModelId(null);
-                        setIsProcessing(false);
-                        setShowSuccessToast(true);
-                        setTimeout(() => setShowSuccessToast(false), 5000);
-                        await fetchDashboardData();
-                    } else if (data.status === 'failed') {
-                        clearInterval(pollInterval);
-                        setTrainingStatus('failed');
-                        setActiveModelId(null);
-                        setIsProcessing(false);
-                        setTrainingError("Model training failed on Celery cluster.");
-                        alert("Training Error: Model training failed on the cluster worker.");
-                        await fetchDashboardData();
-                    } else {
-                        setTrainingStatus(data.status);
+                    const freshModels: BackendModel[] = await res.json();
+                    const prevStatuses = prevModelStatusesRef.current;
+
+                    // Detect training → ready/failed transitions
+                    for (const m of freshModels) {
+                        const prev = prevStatuses[m.id];
+                        if (prev === 'training' && m.status === 'ready') {
+                            setTrainedModelName(m.name);
+                            setShowSuccessToast(true);
+                            setIsProcessing(false);
+                            setTimeout(() => setShowSuccessToast(false), 5000);
+                        } else if (prev === 'training' && m.status === 'failed') {
+                            setIsProcessing(false);
+                            alert(`Training Error: Model "${m.name}" failed on the cluster worker.`);
+                        }
                     }
-                } else {
-                    console.error("Polling error: endpoint returned status", res.status);
+
+                    setModels(freshModels);
                 }
             } catch (err) {
-                console.error("Failed to poll model training status:", err);
+                console.error('Smart polling error:', err);
             }
         }, 3000);
 
         return () => {
             clearInterval(pollInterval);
         };
-    }, [activeModelId, trainingStatus]);
+    }, [hasTrainingModels]);
+
+    // Track previous model statuses for transition detection
+    useEffect(() => {
+        const statusMap: Record<string, string> = {};
+        for (const m of models) { statusMap[m.id] = m.status; }
+        prevModelStatusesRef.current = statusMap;
+    }, [models]);
 
     const handleDeleteModel = async (e: React.MouseEvent, modelId: string) => {
         e.stopPropagation();
@@ -148,7 +199,6 @@ export default function Studio() {
     const handleTrainModel = async () => {
         if (!datasetId || !modelName || !targetColumn) return;
         setIsProcessing(true);
-        setTrainingError(null);
 
         try {
             const payload = { name: modelName, dataset_id: datasetId, algorithm: algorithm, target_column: targetColumn };
@@ -156,10 +206,8 @@ export default function Studio() {
 
             if (!response.ok) throw new Error((await response.json()).detail || 'Training failed due to invalid parameters.');
 
-            const data = await response.json();
-            setActiveModelId(data.model_id);
-            setTrainingStatus(data.status || 'training');
-            setTrainedModelName(modelName);
+            // Response consumed — backend returns 202 with model_id + status: 'training'
+            await response.json();
 
             setIsModalOpen(false);
             setModalStep('upload');
@@ -168,6 +216,8 @@ export default function Studio() {
             setTargetColumn('');
             setAlgorithm('random_forest');
 
+            // Refresh models list — smart polling will automatically start
+            // because the new model has status === 'training'
             await fetchDashboardData();
         } catch (err: any) {
             alert(`Training Error: ${err.message}`);
@@ -375,44 +425,6 @@ export default function Studio() {
                         </div>
                     </div>
 
-                    {/* ACTIVE TRAINING PIPELINE HUD */}
-                    <AnimatePresence>
-                        {activeModelId && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
-                                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                                className="overflow-hidden"
-                            >
-                                <div className="bg-gradient-to-r from-accent/10 via-surface/40 to-white/[0.02] border border-accent/20 rounded-2xl p-5 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_0_30px_rgba(59,130,246,0.05)]">
-                                    <div className="flex items-start space-x-4">
-                                        <div className="h-10 w-10 bg-accent/10 border border-accent/30 rounded-xl flex items-center justify-center shrink-0">
-                                            <Cpu className="h-5 w-5 text-accent animate-pulse" />
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] font-mono text-accent uppercase tracking-wider block mb-1">Active Celery Pipeline Running</span>
-                                            <h4 className="text-sm font-semibold text-white">Training "{trainedModelName}"</h4>
-                                            <p className="text-xs text-muted mt-0.5">Algorithm: <span className="capitalize text-white/70">{algorithm.replace('_', ' ')}</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center space-x-4 self-end md:self-auto shrink-0 font-mono">
-                                        <div className="text-right">
-                                            <span className="text-[10px] text-muted uppercase tracking-wider block">Status</span>
-                                            <span className="text-xs text-accent font-medium capitalize flex items-center gap-1.5 justify-end">
-                                                <span className="h-1.5 w-1.5 bg-accent rounded-full animate-ping" />
-                                                {trainingStatus}
-                                            </span>
-                                        </div>
-                                        <div className="h-8 w-[1px] bg-white/10 hidden sm:block" />
-                                        <div className="flex items-center space-x-2 bg-white/5 border border-white/5 px-3 py-2 rounded-lg">
-                                            <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
-                                            <span className="text-[10px] text-white/90">Polling cluster (3s)</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
 
                     {isLoading && (
                         <div className="flex justify-center items-center h-64">
@@ -434,11 +446,20 @@ export default function Studio() {
                                     key={model.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    whileHover={{ y: -2 }}
-                                    onClick={() => navigate(`/model/${model.id}`, { state: { model } })}
-                                    className="group relative flex flex-col bg-surface/30 border border-white/10 rounded-2xl p-6 hover:bg-surface/50 hover:border-white/20 transition-all cursor-pointer overflow-hidden min-w-0"
+                                    whileHover={model.status !== 'training' ? { y: -2 } : {}}
+                                    onClick={() => model.status !== 'training' && navigate(`/model/${model.id}`, { state: { model } })}
+                                    className={`group relative flex flex-col bg-surface/30 border rounded-2xl p-6 transition-all overflow-hidden min-w-0 ${
+                                        model.status === 'training'
+                                            ? 'border-accent/30 cursor-default'
+                                            : 'border-white/10 hover:bg-surface/50 hover:border-white/20 cursor-pointer'
+                                    }`}
                                 >
-                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/5 to-transparent group-hover:via-accent/50 transition-all" />
+                                    <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent to-transparent transition-all ${
+                                        model.status === 'training' ? 'via-accent/60 animate-pulse' : 'via-white/5 group-hover:via-accent/50'
+                                    }`} />
+
+                                    {/* TRAINING HUD OVERLAY */}
+                                    {model.status === 'training' && <TrainingHUD modelName={model.name} algorithm={model.algorithm} />}
 
                                     <div className="flex justify-between items-start mb-4 gap-2 min-w-0">
                                         <div className="min-w-0 flex-1">
@@ -459,7 +480,7 @@ export default function Studio() {
                                         <div className="min-w-0">
                                             <p className="text-xs text-muted mb-1 flex items-center"><Activity className="h-3 w-3 mr-1 shrink-0" /> Status</p>
                                             <p className="text-sm font-medium flex items-center space-x-2 truncate">
-                                                <span className={`h-2 w-2 rounded-full shrink-0 ${model.status === 'ready' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-yellow-500'}`} />
+                                                <span className={`h-2 w-2 rounded-full shrink-0 ${model.status === 'ready' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : model.status === 'failed' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-yellow-500 animate-pulse'}`} />
                                                 <span className="capitalize truncate">{model.status}</span>
                                             </p>
                                         </div>

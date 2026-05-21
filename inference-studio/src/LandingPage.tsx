@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Github, ArrowRight, Terminal, ShieldCheck, Box, TrendingUp, GitMerge, Network } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,8 @@ import * as THREE from 'three';
 /* ═══════════════════════════════════════════════════════════════════
    3D COMPONENTS – rendered inside <Canvas>
    ═══════════════════════════════════════════════════════════════════ */
+
+// ... (existing 3D components stay the same)
 
 /** A single wireframe ring that slowly rotates and pulses opacity. */
 function DataRing({ radius, y, speed, color }: { radius: number; y: number; speed: number; color: string }) {
@@ -203,6 +205,33 @@ export default function LandingPage() {
     const navigate = useNavigate();
     usePrewarmCluster();
 
+    // ── Live Cluster Heartbeat State ──
+    const [clusterOnline, setClusterOnline] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const pingCluster = async () => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
+            
+            try {
+                const res = await fetch(`${base}/api/v1/predictions/telemetry/live`, {
+                    signal: controller.signal,
+                    headers: { 'Accept': 'application/json' }
+                });
+                setClusterOnline(res.ok);
+            } catch (err) {
+                setClusterOnline(false);
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
+
+        pingCluster(); // Initial check
+        const interval = setInterval(pingCluster, 15000);
+        return () => clearInterval(interval);
+    }, []);
+
     // ── Ground Truth Microservice Map state ──
     const [mapState, setMapState] = useState<MapState>({ active: null, phase: -1, logs: [], animating: false });
 
@@ -266,12 +295,24 @@ export default function LandingPage() {
                     transition={{ duration: 0.8 }}
                     className="z-10 text-center max-w-4xl mx-auto mt-20 min-w-0"
                 >
-                    <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 text-sm text-blue-400 border border-blue-900/50 rounded-full bg-blue-950/30 backdrop-blur-sm">
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 mb-6 text-sm border rounded-full backdrop-blur-sm transition-colors duration-500 ${
+                        clusterOnline === null ? 'text-blue-400 border-blue-900/50 bg-blue-950/30' :
+                        clusterOnline === true ? 'text-green-400 border-green-900/50 bg-green-950/30' :
+                        'text-red-400 border-red-900/50 bg-red-950/30'
+                    }`}>
                         <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                            {clusterOnline !== false && (
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                                    clusterOnline === true ? 'bg-green-400' : 'bg-blue-400'
+                                }`} />
+                            )}
+                            <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                                clusterOnline === null ? 'bg-blue-500' :
+                                clusterOnline === true ? 'bg-green-500' : 'bg-red-500'
+                            }`} />
                         </span>
-                        Cluster Online
+                        {clusterOnline === null ? 'Checking Cluster Status...' :
+                         clusterOnline === true ? 'Cluster Online' : 'Cluster Offline'}
                     </div>
 
                     <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight mb-6 bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent drop-shadow-lg">
