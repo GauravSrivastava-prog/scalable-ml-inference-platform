@@ -63,6 +63,18 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  model-worker:
+    build:
+      context: .
+      dockerfile: model-service/Dockerfile
+    container_name: scalablemlinferenceplatform-model-worker-1
+    command: celery -A app.services.training.celery_app worker --loglevel=info
+    env_file: .env
+    volumes:
+      - model-storage:/app/storage
+    depends_on:
+      - redis
+      - model-service
   # ---------------------------------------------------------------------------
   # Prediction Service (Scaled & Internal Only)
   # ---------------------------------------------------------------------------

@@ -27,9 +27,28 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import xgboost as xgb
+from celery import Celery
+import asyncio
+from supabase import create_client
+from sqlalchemy import update
+from ml_platform_core.database import async_session_factory
+from ml_platform_core.models.ml_model import MLModel
 
 logger = logging.getLogger(__name__)
+# --- NEW CELERY SETUP ---
+# Grab the Upstash Redis URL from your .env file
+redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
+# FIX: Celery requires explicit SSL config for Upstash (rediss://)
+if redis_url.startswith("rediss://") and "ssl_cert_reqs" not in redis_url:
+    redis_url += "?ssl_cert_reqs=CERT_NONE"
+
+celery_app = Celery(
+    'training_tasks',
+    broker=redis_url,
+    backend=redis_url  # This allows Celery to save the task status/result back to Redis
+)
+# ------------------------
 # Algorithm registry keyed by task type
 CLASSIFICATION_ALGORITHMS: dict[str, type] = {
     "random_forest": RandomForestClassifier,
@@ -72,6 +91,7 @@ def expected_calibration_error(y_true, y_prob, n_bins: int = 10) -> float:
 
     return float(ece)
 
+@celery_app.task(name="train_model_background")
 def train_model(
     dataset_path: str,
     target_column: str,
@@ -209,3 +229,68 @@ def train_model(
     
     logger.info(f"Model saved to {model_save_path} | metrics: {metrics}")
     return metrics
+
+@celery_app.task(name="run_full_training_pipeline")
+def run_full_training_pipeline(
+    model_id_str: str, 
+    dataset_path: str, 
+    target_column: str, 
+    algorithm: str, 
+    model_save_path: str, 
+    training_params: dict, 
+    user_id_str: str, 
+    model_name: str, 
+    next_version: int
+):
+    try:
+        # 1. Run the Heavy ML Math (using your existing function)
+        metrics = train_model(
+            dataset_path=dataset_path,
+            target_column=target_column,
+            algorithm=algorithm,
+            model_save_path=model_save_path,
+            training_params=training_params
+        )
+
+        # 2. Upload to Supabase (Background Network I/O)
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_KEY")
+        cloud_path = f"{user_id_str}/{model_name}/v{next_version}.joblib"
+        
+        if url and key:
+            supabase = create_client(url, key)
+            with open(model_save_path, "rb") as f:
+                supabase.storage.from_("models").upload(
+                    file=f,
+                    path=cloud_path,
+                    file_options={"content-type": "application/octet-stream"}
+                )
+            logger.info(f"Worker uploaded to Supabase: {cloud_path}")
+        else:
+            cloud_path = model_save_path  # Local fallback
+
+        # 3. Update Postgres to "ready"
+        async def _update_success():
+            async with async_session_factory() as session:
+                await session.execute(
+                    update(MLModel)
+                    .where(MLModel.id == model_id_str)
+                    .values(status="ready", metrics=metrics, file_path=cloud_path)
+                )
+                await session.commit()
+                
+        asyncio.run(_update_success())
+
+    except Exception as exc:
+        logger.error(f"Worker Training Failed: {str(exc)}")
+        # If it fails, update Postgres to "failed"
+        async def _update_failure():
+            async with async_session_factory() as session:
+                await session.execute(
+                    update(MLModel)
+                    .where(MLModel.id == model_id_str)
+                    .values(status="failed")
+                )
+                await session.commit()
+                
+        asyncio.run(_update_failure())

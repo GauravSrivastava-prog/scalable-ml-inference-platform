@@ -101,14 +101,14 @@ class ModelService:
             columns=list(df.columns),
         )
 
-    # ------------------------------------------------------------------
-    # Model training
+ # ------------------------------------------------------------------
+    # Model training (Asynchronous)
     # ------------------------------------------------------------------
     @staticmethod
     async def train(
         db: AsyncSession, data: ModelTrainRequest, user: User
     ) -> ModelTrainResponse:
-        """Train a scikit-learn model synchronously and persist metadata."""
+        """Trigger an asynchronous Celery task to train the model."""
         # Validate dataset exists and belongs to user
         dataset_path = os.path.join(
             STORAGE_BASE, "datasets", str(user.id), f"{data.dataset_id}.csv"
@@ -160,67 +160,39 @@ class ModelService:
             training_params=data.training_params,
         )
         db.add(model)
-        await db.flush()
-
-        # Run training (synchronous in Phase 1)
-        try:
-            metrics = train_model(
-                dataset_path=dataset_path,
-                target_column=data.target_column,
-                algorithm=data.algorithm,
-                model_save_path=model_file_path,
-                training_params=data.training_params,
-            )
-            
-            # --- NEW SUPABASE UPLOAD LOGIC ---
-            url: str = os.environ.get("SUPABASE_URL")
-            key: str = os.environ.get("SUPABASE_KEY")
-            
-            if url and key:
-                supabase = create_client(url, key)
-                
-                # Cloud path: e.g., user_id/model_name/v1.joblib
-                cloud_path = f"{user.id}/{data.name}/v{next_version}.joblib"
-                
-                # Upload to Supabase
-                with open(model_file_path, "rb") as f:
-                    supabase.storage.from_("models").upload(
-                        file=f,
-                        path=cloud_path,
-                        file_options={"content-type": "application/octet-stream"}
-                    )
-                
-                model.file_path = cloud_path  # Save cloud path to DB
-                logger.info(f"Model trained and uploaded to Supabase: {model.name} v{model.version}")
-            else:
-                logger.info(f"Supabase credentials not found. Using local docker volume storage: {model.file_path}")
-            
-            model.status = "ready"
-            model.metrics = metrics
-            # ---------------------------------
-            
-            logger.info(
-                f"Model trained and uploaded to Supabase: {model.name} v{model.version}, metrics={metrics}"
-            )
-        except Exception as exc:
-            model.status = "failed"
-            logger.error(f"Training failed for {model.name}: {exc}")
-            await db.flush()
-            raise TrainingError(f"Training failed: {str(exc)}")
-
-        await db.flush()
-        await db.refresh(model)
+        
+        # CRITICAL: Commit the record BEFORE triggering the background worker
+        # so the worker can find the ID in the database when it finishes.
         await db.commit()
+        await db.refresh(model)
 
+        # Import and trigger the asynchronous Celery Worker
+        from app.services.training import run_full_training_pipeline
+        
+        run_full_training_pipeline.delay(
+            model_id_str=str(model.id), 
+            dataset_path=dataset_path, 
+            target_column=data.target_column, 
+            algorithm=data.algorithm,
+            model_save_path=model_file_path, 
+            training_params=data.training_params, 
+            user_id_str=str(user.id), 
+            model_name=data.name, 
+            next_version=next_version
+        )
+
+        logger.info(f"Handed off training job for {model.name} v{next_version} to Celery Worker.")
+
+        # Return instantly to the frontend (50ms response time)
         return ModelTrainResponse(
             model_id=model.id,
             name=model.name,
             version=model.version,
             algorithm=model.algorithm,
-            status=model.status,
+            status=model.status, # This will currently be "training"
             metrics=model.metrics,
         )
-
+        
     # ------------------------------------------------------------------
     # Model listing / retrieval
     # ------------------------------------------------------------------
