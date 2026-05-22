@@ -55,3 +55,36 @@ class ModelListResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── DATASET ANALYSIS / PROFILER SCHEMAS ───────────────────────────────────
+
+class DatasetAnalyzeRequest(BaseModel):
+    """Request body for the analyze-dataset endpoint."""
+    dataset_id: str
+
+
+class ColumnProfile(BaseModel):
+    """Per-column statistics returned by the profiler."""
+    name: str
+    dtype: str
+    unique: int
+    null_pct: float
+    cardinality_ratio: float
+    sample_values: list[Any]
+
+
+class SuggestionBlock(BaseModel):
+    """A single copilot suggestion (classification or regression path)."""
+    target: str
+    algorithm: str
+    rationale: str
+
+
+class DatasetAnalysisResponse(BaseModel):
+    """Full response from the dataset profiler endpoint."""
+    row_count: int
+    col_count: int
+    columns: list[ColumnProfile]
+    classification_suggestion: SuggestionBlock | None = None
+    regression_suggestion: SuggestionBlock | None = None

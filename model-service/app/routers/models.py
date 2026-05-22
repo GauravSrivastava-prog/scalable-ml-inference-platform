@@ -9,6 +9,8 @@ from ml_platform_core.dependencies import get_current_user, get_db
 from ml_platform_core.models.user import User
 from ml_platform_core.schemas.model import (
     DatasetUploadResponse,
+    DatasetAnalyzeRequest,
+    DatasetAnalysisResponse,
     ModelListResponse,
     ModelResponse,
     ModelTrainRequest,
@@ -33,6 +35,19 @@ async def upload_dataset(
 ):
     """Upload a CSV dataset for training."""
     return await ModelService.upload_dataset(file, current_user)
+
+
+@router.post(
+    "/analyze-dataset",
+    response_model=DatasetAnalysisResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def analyze_dataset(
+    body: DatasetAnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Profile an uploaded CSV and return Copilot suggestions for target column and algorithm."""
+    return await ModelService.analyze_dataset(body.dataset_id, current_user)
 
 
 @router.post(

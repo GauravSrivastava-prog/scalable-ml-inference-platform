@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Plus, Search, Activity, Box, Clock, List, UploadCloud, X, Trash2, CheckCircle2, User, Cpu } from 'lucide-react';
+import { Database, Plus, Search, Activity, Box, Clock, List, UploadCloud, X, Trash2, CheckCircle2, User, Cpu, Zap, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from './api';
 import { useAuth } from './AuthContext';
@@ -17,6 +17,19 @@ interface BackendModel {
         feature_columns?: string[];
     } | null;
     created_at: string;
+}
+
+interface SuggestionBlock {
+    target: string;
+    algorithm: string;
+    rationale: string;
+}
+
+interface DatasetAnalysis {
+    row_count: number;
+    col_count: number;
+    classification_suggestion: SuggestionBlock | null;
+    regression_suggestion: SuggestionBlock | null;
 }
 
 /** Inline Training HUD — overlays model cards with status === 'training' */
@@ -86,6 +99,9 @@ export default function Studio() {
     const [targetColumn, setTargetColumn] = useState('');
     const [algorithm, setAlgorithm] = useState('random_forest');
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // --- COPILOT PROFILER STATE ---
+    const [datasetAnalysis, setDatasetAnalysis] = useState<DatasetAnalysis | null>(null);
 
     // --- SMART POLLING STATE ---
     const [trainedModelName, setTrainedModelName] = useState('');
@@ -188,6 +204,21 @@ export default function Studio() {
             if (!response.ok) throw new Error((await response.json()).detail || 'Upload failed');
             const data = await response.json();
             setDatasetId(data.dataset_id);
+
+            // Auto-fire profiler — non-blocking, errors are swallowed gracefully
+            try {
+                const analysisRes = await apiFetch('/api/v1/models/analyze-dataset', {
+                    method: 'POST',
+                    body: JSON.stringify({ dataset_id: data.dataset_id }),
+                });
+                if (analysisRes.ok) {
+                    const analysisData = await analysisRes.json();
+                    setDatasetAnalysis(analysisData);
+                }
+            } catch (analysisErr) {
+                console.warn('Dataset analysis failed (non-critical):', analysisErr);
+            }
+
             setModalStep('train');
         } catch (err: any) {
             alert(`Upload Failed: ${err.message}`);
@@ -280,6 +311,72 @@ export default function Studio() {
                                 ) : (
                                     <div className="space-y-4 min-w-0">
                                         <p className="text-sm text-muted">Step 2: Configure Training Parameters.</p>
+
+                                        {/* COPILOT SUGGESTION PANEL */}
+                                        {datasetAnalysis && (datasetAnalysis.classification_suggestion || datasetAnalysis.regression_suggestion) && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -8 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="bg-gradient-to-br from-accent/10 via-purple-500/5 to-transparent border border-accent/20 rounded-xl p-4"
+                                            >
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <Zap className="h-3.5 w-3.5 text-accent" />
+                                                    <span className="text-[11px] font-mono text-accent uppercase tracking-widest">Copilot Suggestions</span>
+                                                    <span className="ml-auto text-[10px] text-muted">{datasetAnalysis.row_count.toLocaleString()} rows · {datasetAnalysis.col_count} cols</span>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    {datasetAnalysis.classification_suggestion && (
+                                                        <div className="flex items-start justify-between gap-2 bg-white/[0.03] border border-white/5 rounded-lg p-2.5">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                                    <span className="text-[9px] font-mono bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded uppercase tracking-wider">Classification</span>
+                                                                </div>
+                                                                <p className="text-xs text-white font-medium truncate">
+                                                                    target: <span className="text-accent font-mono">{datasetAnalysis.classification_suggestion.target}</span>
+                                                                    <span className="text-muted mx-1">·</span>
+                                                                    <span className="capitalize text-muted">{datasetAnalysis.classification_suggestion.algorithm.replace('_', ' ')}</span>
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setTargetColumn(datasetAnalysis.classification_suggestion!.target);
+                                                                    setAlgorithm(datasetAnalysis.classification_suggestion!.algorithm);
+                                                                }}
+                                                                className="shrink-0 text-[10px] bg-accent/20 hover:bg-accent/30 text-accent px-2 py-1 rounded transition-colors font-medium"
+                                                            >
+                                                                Apply
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {datasetAnalysis.regression_suggestion && (
+                                                        <div className="flex items-start justify-between gap-2 bg-white/[0.03] border border-white/5 rounded-lg p-2.5">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                                    <span className="text-[9px] font-mono bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded uppercase tracking-wider">Regression</span>
+                                                                </div>
+                                                                <p className="text-xs text-white font-medium truncate">
+                                                                    target: <span className="text-purple-300 font-mono">{datasetAnalysis.regression_suggestion.target}</span>
+                                                                    <span className="text-muted mx-1">·</span>
+                                                                    <span className="capitalize text-muted">{datasetAnalysis.regression_suggestion.algorithm.replace('_', ' ')}</span>
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setTargetColumn(datasetAnalysis.regression_suggestion!.target);
+                                                                    setAlgorithm(datasetAnalysis.regression_suggestion!.algorithm);
+                                                                }}
+                                                                className="shrink-0 text-[10px] bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 px-2 py-1 rounded transition-colors font-medium"
+                                                            >
+                                                                Apply
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        )}
+
                                         <div className="space-y-3 min-w-0">
                                             <div>
                                                 <label className="text-xs font-medium text-muted mb-1 block">Model Name</label>

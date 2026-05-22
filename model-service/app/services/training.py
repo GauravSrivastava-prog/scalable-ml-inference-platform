@@ -107,6 +107,33 @@ def train_model(
     X = df.drop(columns=[target_column])
     y = df[target_column]
 
+    # ── INTELLIGENT COLUMN PRUNER ──────────────────────────────────────
+    # Drop non-predictive metadata columns that cause tree bloat and data leakage.
+    # Columns are matched case-insensitively against a known metadata blocklist,
+    # OR dynamically detected as near-unique string identifiers (cardinality > 95%).
+    NON_PREDICTIVE_METADATA = {
+        "unnamed: 0", "track_id", "track_name", "album_name",
+        "artists", "id", "index", "row_id", "song_id", "user_id",
+    }
+    pruned_columns: list[str] = []
+    for col in list(X.columns):
+        # Rule 1: Drop known metadata strings (case-insensitive exact match)
+        if col.lower().strip() in NON_PREDICTIVE_METADATA:
+            X = X.drop(columns=[col])
+            pruned_columns.append(col)
+            logger.info(f"[PRUNER] Dropped metadata column: '{col}' (blocklist match)")
+            continue
+        # Rule 2: Drop any object column where >95% of values are unique
+        # This catches arbitrary ID / free-text columns not in the blocklist.
+        if X[col].dtype == "object" and len(X) > 0 and X[col].nunique() / len(X) > 0.95:
+            X = X.drop(columns=[col])
+            pruned_columns.append(col)
+            logger.info(f"[PRUNER] Dropped high-cardinality column: '{col}' ({X[col].nunique() if col in X.columns else 'N/A'} unique values)")
+            continue
+    if pruned_columns:
+        logger.info(f"[PRUNER] Total dropped: {len(pruned_columns)} columns → {pruned_columns}")
+    # ──────────────────────────────────────────────────────────────────
+
     task_type = _detect_task_type(y)
     logger.info(f"Detected task type: {task_type} for algorithm: {algorithm}")
 
@@ -140,6 +167,18 @@ def train_model(
     )
 
     params = training_params or {}
+
+    # ── STRUCTURAL GUARDS (tree-based models) ─────────────────────────
+    # Apply safe defaults to prevent unbounded tree growth which causes
+    # .joblib artifact size to explode beyond the 50MB Supabase free-tier.
+    # setdefault() only applies if the user didn't pass an explicit value.
+    if algorithm in ("random_forest", "gradient_boosting", "decision_tree"):
+        params.setdefault("max_depth", 12)
+        params.setdefault("min_samples_leaf", 5)
+    if algorithm == "random_forest":
+        params.setdefault("n_estimators", 100)
+    # ──────────────────────────────────────────────────────────────────
+
     pipeline = Pipeline([
         ("scaler", StandardScaler()),
         ("model", estimator_class(**params)),
@@ -227,7 +266,8 @@ def train_model(
     joblib.dump(model_artifact, model_save_path, compress=3)
     metrics["feature_columns"] = list(X.columns)
     metrics["sample_data"] = X.head(3).fillna("").to_dict(orient="records")
-    
+    metrics["pruned_columns"] = pruned_columns  # For Feature Pruning Log in Canvas
+
     logger.info(f"Model saved to {model_save_path} | metrics: {metrics}")
     return metrics
 

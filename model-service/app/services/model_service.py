@@ -21,6 +21,10 @@ from ml_platform_core.models.ml_model import MLModel
 from ml_platform_core.models.user import User
 from ml_platform_core.schemas.model import (
     DatasetUploadResponse,
+    DatasetAnalyzeRequest,
+    DatasetAnalysisResponse,
+    ColumnProfile,
+    SuggestionBlock,
     ModelTrainRequest,
     ModelTrainResponse,
 )
@@ -99,6 +103,117 @@ class ModelService:
             filename=file.filename,
             rows=row_count,
             columns=list(df.columns),
+        )
+
+    # ------------------------------------------------------------------
+    # Dataset analysis / Copilot profiler
+    # ------------------------------------------------------------------
+    @staticmethod
+    async def analyze_dataset(dataset_id: str, user: User) -> DatasetAnalysisResponse:
+        """Run a lightweight Pandas profile on an already-uploaded CSV.
+        
+        Returns structured column stats and two Copilot suggestions:
+        - classification_suggestion: best categorical target + algorithm
+        - regression_suggestion:     best numeric target + algorithm
+        """
+        dataset_path = os.path.join(
+            STORAGE_BASE, "datasets", str(user.id), f"{dataset_id}.csv"
+        )
+        if not os.path.isfile(dataset_path):
+            raise ResourceNotFoundError("Dataset not found for analysis")
+
+        df = pd.read_csv(dataset_path)
+        row_count = len(df)
+        col_count = len(df.columns)
+
+        # --- Build per-column profiles ---
+        column_profiles: list[ColumnProfile] = []
+        for col in df.columns:
+            series = df[col]
+            unique = int(series.nunique())
+            null_pct = round(float(series.isna().mean() * 100), 2)
+            cardinality_ratio = round(unique / row_count, 4) if row_count > 0 else 0.0
+            dtype_str = str(series.dtype)
+            sample_vals = series.dropna().head(3).tolist()
+            column_profiles.append(ColumnProfile(
+                name=col,
+                dtype=dtype_str,
+                unique=unique,
+                null_pct=null_pct,
+                cardinality_ratio=cardinality_ratio,
+                sample_values=sample_vals,
+            ))
+
+        # --- Classification suggestion ---
+        # Find the best categorical column: object dtype, low-enough cardinality (2–200 unique),
+        # not a known metadata field, and fewest nulls.
+        NON_PREDICTIVE = {
+            "unnamed: 0", "track_id", "track_name", "album_name",
+            "artists", "id", "index", "row_id", "song_id", "user_id",
+        }
+        classification_suggestion: SuggestionBlock | None = None
+        best_cls_col = None
+        best_cls_score = float("inf")
+        for col in df.columns:
+            if col.lower().strip() in NON_PREDICTIVE:
+                continue
+            series = df[col]
+            uniq = series.nunique()
+            if (series.dtype == "object" or series.dtype.name == "category") and 2 <= uniq <= 200:
+                score = series.isna().sum()  # Prefer columns with fewer nulls
+                if score < best_cls_score:
+                    best_cls_score = score
+                    best_cls_col = col
+        if best_cls_col:
+            uniq_count = int(df[best_cls_col].nunique())
+            null_p = round(float(df[best_cls_col].isna().mean() * 100), 1)
+            classification_suggestion = SuggestionBlock(
+                target=best_cls_col,
+                algorithm="random_forest",
+                rationale=(
+                    f"Categorical column with {uniq_count} unique classes "
+                    f"and {null_p}% nulls. Random Forest handles multi-class "
+                    f"targets without one-hot encoding overhead."
+                ),
+            )
+
+        # --- Regression suggestion ---
+        # Find the numeric column with the highest variance (most signal),
+        # excluding near-constant columns and index-like columns.
+        regression_suggestion: SuggestionBlock | None = None
+        best_reg_col = None
+        best_variance = -1.0
+        for col in df.columns:
+            if col.lower().strip() in NON_PREDICTIVE:
+                continue
+            series = df[col]
+            if pd.api.types.is_numeric_dtype(series) and series.nunique() > 20:
+                var = float(series.var())
+                if var > best_variance:
+                    best_variance = var
+                    best_reg_col = col
+        if best_reg_col:
+            std_val = round(float(df[best_reg_col].std()), 2)
+            regression_suggestion = SuggestionBlock(
+                target=best_reg_col,
+                algorithm="xgboost",
+                rationale=(
+                    f"Numeric column with the highest variance (\u03c3={std_val}). "
+                    f"XGBoost is optimal for tabular regression with mixed "
+                    f"feature types and handles missing values natively."
+                ),
+            )
+
+        logger.info(
+            f"Dataset analyzed: user={user.id}, dataset_id={dataset_id}, "
+            f"rows={row_count}, cls_target={best_cls_col}, reg_target={best_reg_col}"
+        )
+        return DatasetAnalysisResponse(
+            row_count=row_count,
+            col_count=col_count,
+            columns=column_profiles,
+            classification_suggestion=classification_suggestion,
+            regression_suggestion=regression_suggestion,
         )
 
  # ------------------------------------------------------------------
