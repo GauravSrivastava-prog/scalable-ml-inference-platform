@@ -1,8 +1,18 @@
-"""Models router — dataset upload, training, model listing."""
+"""Models router — dataset upload, training, model listing.
+
+ROUTE ORDERING CONTRACT
+-----------------------
+Static paths MUST be registered BEFORE wildcard paths (e.g. /{model_id}).
+Starlette's router evaluates routes in insertion order. A wildcard like
+/{model_id} will match any path segment — including "analyze-dataset" —
+and if the HTTP method doesn't match, it returns 405 instead of falling
+through to the correct static handler. Keeping all static POST routes at
+the top of this file prevents that ambiguity entirely.
+"""
 import os
 from uuid import UUID
 from fastapi import Response, status, HTTPException
-from fastapi import APIRouter, Depends, UploadFile, File, status
+from fastapi import APIRouter, Depends, UploadFile, File, status, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, delete
 from ml_platform_core.dependencies import get_current_user, get_db
@@ -22,6 +32,10 @@ from app.services.model_service import ModelService
 
 router = APIRouter()
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# STATIC POST ROUTES  (must come before wildcard GET/DELETE /{model_id})
+# ──────────────────────────────────────────────────────────────────────────────
 
 @router.post(
     "/upload-dataset",
@@ -46,7 +60,12 @@ async def analyze_dataset(
     body: DatasetAnalyzeRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Profile an uploaded CSV and return Copilot suggestions for target column and algorithm."""
+    """Profile an uploaded CSV and return Copilot suggestions.
+
+    Accepts a JSON body: { "dataset_id": "<uuid-string>" }
+    Returns classification + regression target/algorithm suggestions based
+    on a lightweight Pandas analysis of the already-uploaded CSV file.
+    """
     return await ModelService.analyze_dataset(body.dataset_id, current_user)
 
 
@@ -60,9 +79,13 @@ async def train_model(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Train a model on an uploaded dataset (synchronous in Phase 1)."""
+    """Train a model on an uploaded dataset (async Celery pipeline)."""
     return await ModelService.train(db, body, current_user)
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# STATIC GET ROUTES  (list before wildcard)
+# ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/", response_model=list[ModelListResponse])
 async def list_models(
@@ -73,6 +96,10 @@ async def list_models(
     return await ModelService.list_models(db, current_user)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# WILDCARD ROUTES  (must come LAST — matches any /{model_id} segment)
+# ──────────────────────────────────────────────────────────────────────────────
+
 @router.get("/{model_id}", response_model=ModelResponse)
 async def get_model(
     model_id: UUID,
@@ -82,15 +109,14 @@ async def get_model(
     """Get details for a specific model (ownership-scoped)."""
     return await ModelService.get_model(db, model_id, current_user)
 
+
 @router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_model(
     model_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Safely delete a model, its predictions, its cache, and its physical artifacts."""
-    
-    # FIX 2: Use MLModel instead of Model
     query = select(MLModel).where(MLModel.id == model_id, MLModel.user_id == current_user.id)
     result = await db.execute(query)
     model = result.scalar_one_or_none()
@@ -98,11 +124,11 @@ async def delete_model(
     if not model:
         raise HTTPException(status_code=404, detail="Model not found or access denied")
 
-    # FIX 3 & 4: Safe ORM Deletion with synchronize_session=False to prevent async memory crashes
+    # Safe ORM deletion with synchronize_session=False to prevent async memory crashes
     delete_stmt = delete(Prediction).where(Prediction.model_id == model_id).execution_options(synchronize_session=False)
     await db.execute(delete_stmt)
 
-    # Delete the actual physical model file from the disk
+    # Delete the physical model artifact from disk
     if model.file_path and os.path.exists(model.file_path):
         try:
             os.remove(model.file_path)
@@ -110,8 +136,7 @@ async def delete_model(
         except Exception as e:
             print(f"Warning: Could not delete physical file {model.file_path}: {e}")
 
-    # Finally, delete the model record from the database
     await db.delete(model)
     await db.commit()
-    
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
