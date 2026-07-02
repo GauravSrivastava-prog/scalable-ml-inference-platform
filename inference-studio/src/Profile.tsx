@@ -17,12 +17,17 @@ export default function Profile() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Security Form States
+    // ── Username form state (completely independent) ───────────────────────
     const [newUsername, setNewUsername] = useState('');
-    const [currentPassword, setCurrentPassword] = useState(''); // NEW STATE
+    const [usernamePassword, setUsernamePassword] = useState('');  // verification for username op
+    const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
+    const [usernameMsg, setUsernameMsg] = useState({ text: '', type: '' });
+
+    // ── Password form state (completely independent) ─────────────────────────
+    const [currentPassword, setCurrentPassword] = useState('');  // verification for password op
     const [newPassword, setNewPassword] = useState('');
-    const [isUpdating, setIsUpdating] = useState(false);
-    const [updateMsg, setUpdateMsg] = useState({ text: '', type: '' });
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+    const [passwordMsg, setPasswordMsg] = useState({ text: '', type: '' });
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -40,27 +45,55 @@ export default function Profile() {
         fetchStats();
     }, []);
 
-    const handleUpdateSecurity = async (e: React.FormEvent) => {
+    // ── Handler: update username only ────────────────────────────────────────
+    const handleUpdateUsername = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsUpdating(true);
-        setUpdateMsg({ text: '', type: '' });
-
+        if (!newUsername.trim()) return;
+        setIsUpdatingUsername(true);
+        setUsernameMsg({ text: '', type: '' });
         try {
-            const payload = {
-                current_password: currentPassword, // Mandated for security
-                new_username: newUsername || undefined,
-                new_password: newPassword || undefined
-            };
-
             const res = await apiFetch('/api/v1/auth/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    current_password: usernamePassword,
+                    new_username: newUsername,
+                    // new_password intentionally omitted — this is username-only
+                }),
             });
-
             if (res.ok) {
-                setUpdateMsg({ text: 'Credentials updated successfully.', type: 'success' });
+                setUsernameMsg({ text: 'Username updated successfully.', type: 'success' });
                 setNewUsername('');
+                setUsernamePassword('');
+            } else {
+                const errData = await res.json();
+                throw new Error(errData.detail || 'Update rejected by server.');
+            }
+        } catch (err: any) {
+            setUsernameMsg({ text: err.message || 'Failed to update username.', type: 'error' });
+        } finally {
+            setIsUpdatingUsername(false);
+        }
+    };
+
+    // ── Handler: update password only ────────────────────────────────────────
+    const handleUpdatePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newPassword.trim()) return;
+        setIsUpdatingPassword(true);
+        setPasswordMsg({ text: '', type: '' });
+        try {
+            const res = await apiFetch('/api/v1/auth/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    // new_username intentionally omitted — this is password-only
+                }),
+            });
+            if (res.ok) {
+                setPasswordMsg({ text: 'Password updated successfully.', type: 'success' });
                 setCurrentPassword('');
                 setNewPassword('');
             } else {
@@ -68,9 +101,9 @@ export default function Profile() {
                 throw new Error(errData.detail || 'Update rejected by server.');
             }
         } catch (err: any) {
-            setUpdateMsg({ text: err.message || 'Failed to update credentials.', type: 'error' });
+            setPasswordMsg({ text: err.message || 'Failed to update password.', type: 'error' });
         } finally {
-            setIsUpdating(false);
+            setIsUpdatingPassword(false);
         }
     };
 
@@ -118,7 +151,8 @@ export default function Profile() {
                         <Shield size={18} className="text-accent" /> Account Operations
                     </h3>
 
-                    <form onSubmit={handleUpdateSecurity} className="space-y-5 flex-1 min-w-0">
+                    {/* ── Sub-section 1: Username (independent) ─────────── */}
+                    <form onSubmit={handleUpdateUsername} className="space-y-4 min-w-0">
                         <div>
                             <label className="text-xs text-muted uppercase tracking-wider mb-2 block">New Username</label>
                             <div className="relative">
@@ -132,13 +166,41 @@ export default function Profile() {
                         </div>
                         <div>
                             <label className="text-xs text-muted uppercase tracking-wider mb-2 block">
+                                Verify Password <span className="text-red-400">*</span>
+                            </label>
+                            <div className="relative">
+                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted/50" />
+                                <input
+                                    type="password" value={usernamePassword}
+                                    onChange={(e) => setUsernamePassword(e.target.value)}
+                                    placeholder="Verify current password"
+                                    required
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-accent transition-colors"
+                                />
+                            </div>
+                        </div>
+                        <button type="submit" disabled={isUpdatingUsername || !newUsername.trim()} className="w-full bg-white/5 border border-white/10 hover:bg-accent/20 hover:border-accent/50 text-white text-sm font-medium py-3 min-h-[44px] rounded-lg flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isUpdatingUsername ? <span className="animate-pulse">Saving...</span> : <><Save className="h-4 w-4 mr-2" /> Save Username</>}
+                        </button>
+                        {usernameMsg.text && (
+                            <div className={`text-xs p-3 rounded-lg border ${usernameMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                                {usernameMsg.text}
+                            </div>
+                        )}
+                    </form>
+
+                    <div className="h-px bg-white/[0.06] my-6" />
+
+                    {/* ── Sub-section 2: Password (independent) ────────── */}
+                    <form onSubmit={handleUpdatePassword} className="space-y-4 flex-1 min-w-0">
+                        <div>
+                            <label className="text-xs text-muted uppercase tracking-wider mb-2 block">
                                 Current Password <span className="text-red-400">*</span>
                             </label>
                             <div className="relative">
                                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted/50" />
                                 <input
-                                    type="password"
-                                    value={currentPassword}
+                                    type="password" value={currentPassword}
                                     onChange={(e) => setCurrentPassword(e.target.value)}
                                     placeholder="Verify current password"
                                     required
@@ -157,14 +219,12 @@ export default function Profile() {
                                 />
                             </div>
                         </div>
-
-                        <button type="submit" disabled={isUpdating || (!newUsername && !newPassword)} className="w-full mt-4 bg-white/5 border border-white/10 hover:bg-accent/20 hover:border-accent/50 text-white text-sm font-medium py-3 min-h-[44px] rounded-lg flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                            {isUpdating ? <span className="animate-pulse">Authorizing...</span> : <><Save className="h-4 w-4 mr-2" /> Apply Changes</>}
+                        <button type="submit" disabled={isUpdatingPassword || !newPassword.trim()} className="w-full bg-white/5 border border-white/10 hover:bg-accent/20 hover:border-accent/50 text-white text-sm font-medium py-3 min-h-[44px] rounded-lg flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isUpdatingPassword ? <span className="animate-pulse">Authorizing...</span> : <><Save className="h-4 w-4 mr-2" /> Change Password</>}
                         </button>
-
-                        {updateMsg.text && (
-                            <div className={`mt-4 text-xs p-3 rounded-lg border ${updateMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                                {updateMsg.text}
+                        {passwordMsg.text && (
+                            <div className={`text-xs p-3 rounded-lg border ${passwordMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                                {passwordMsg.text}
                             </div>
                         )}
                     </form>

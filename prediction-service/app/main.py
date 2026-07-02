@@ -9,6 +9,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.core.redis_client import redis_cache
 from app.core.cache_instance import model_cache
+from app.core.model_event_listener import start_model_event_listener
 from ml_platform_core.models.ml_model import MLModel
 from ml_platform_core.config import get_settings
 from ml_platform_core.database import async_session_factory
@@ -16,6 +17,7 @@ from ml_platform_core.exceptions import MLPlatformError, ml_platform_exception_h
 from ml_platform_core.logging import setup_logging
 from app.core.sync_worker import flush_telemetry_to_db
 from app.routers.predictions import router as predictions_router
+from app.routers.telemetry import router as telemetry_router
 from fastapi.middleware.cors import CORSMiddleware
 
 settings = get_settings()
@@ -72,20 +74,28 @@ async def lifespan(application: FastAPI):
     # STARTUP
     await redis_cache.connect()
     await _warm_model_cache()
-    
-    # Spawn the autonomous daemon worker
-    sync_task = asyncio.create_task(flush_telemetry_to_db())
+
+    # Spawn the telemetry flush daemon
+    sync_task = asyncio.create_task(flush_telemetry_to_db(), name="telemetry_sync")
     background_tasks.add(sync_task)
-    
+
+    # Spawn the Pub/Sub cache-warm listener so all replicas pre-warm their
+    # local LRU cache the moment a new model finishes training.
+    listener_task = asyncio.create_task(
+        start_model_event_listener(), name="model_event_listener"
+    )
+    background_tasks.add(listener_task)
+
     yield
-    
-    # SHUTDOWN
-    sync_task.cancel()
-    try:
-        await sync_task # Block until the task acknowledges cancellation
-    except asyncio.CancelledError:
-        pass
-        
+
+    # SHUTDOWN — cancel both background tasks and wait for clean exit
+    for task in list(background_tasks):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
     await redis_cache.close()
 
 
@@ -111,6 +121,9 @@ def create_app() -> FastAPI:
     application.add_exception_handler(MLPlatformError, ml_platform_exception_handler)
     application.include_router(
         predictions_router, prefix="/api/v1/predictions", tags=["predictions"]
+    )
+    application.include_router(
+        telemetry_router, prefix="/api/v1/telemetry", tags=["telemetry"]
     )
 
     @application.get("/health", tags=["health"])

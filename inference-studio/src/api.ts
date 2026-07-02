@@ -6,7 +6,7 @@ const PREDICT_BASE = API_BASE;
 function getBaseUrl(endpoint: string): string {
     if (endpoint.startsWith('/api/v1/auth')) return AUTH_BASE;
     if (endpoint.startsWith('/api/v1/models')) return MODEL_BASE;
-    if (endpoint.startsWith('/api/v1/predictions') || endpoint.includes('batch')) return PREDICT_BASE;
+    if (endpoint.startsWith('/api/v1/predictions') || endpoint.includes('batch') || endpoint.includes('telemetry')) return PREDICT_BASE;
 
     return AUTH_BASE;
 }
