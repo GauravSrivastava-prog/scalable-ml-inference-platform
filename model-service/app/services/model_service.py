@@ -29,7 +29,7 @@ from ml_platform_core.schemas.model import (
     ModelTrainResponse,
 )
 
-from app.services.training import train_model
+from app.services.training import celery_app, run_full_training_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -281,20 +281,35 @@ class ModelService:
         await db.commit()
         await db.refresh(model)
 
-        # Import and trigger the asynchronous Celery Worker
-        from app.services.training import run_full_training_pipeline
-        
-        run_full_training_pipeline.delay(
-            model_id_str=str(model.id), 
-            dataset_path=dataset_path, 
-            target_column=data.target_column, 
-            algorithm=data.algorithm,
-            model_save_path=model_file_path, 
-            training_params=data.training_params, 
-            user_id_str=str(user.id), 
-            model_name=data.name, 
-            next_version=next_version
+        # Dispatch to the Celery ml_training queue.
+        # Payload contract: worker receives dataset_id (not an absolute path) and
+        # resolves the full path internally from storage_base. This decouples the
+        # API server's filesystem layout from the worker container's mount point.
+        async_result = run_full_training_pipeline.apply_async(
+            kwargs=dict(
+                model_id_str=str(model.id),
+                dataset_id=data.dataset_id,
+                target_column=data.target_column,
+                algorithm=data.algorithm,
+                model_save_path=model_file_path,
+                training_params=data.training_params or {},
+                user_id_str=str(user.id),
+                model_name=data.name,
+                next_version=next_version,
+                storage_base=STORAGE_BASE,
+            ),
+            queue="ml_training",
         )
+
+        # Persist the Celery task ID so operators can poll AsyncResult externally
+        from sqlalchemy import update as sa_update
+        from ml_platform_core.models.ml_model import MLModel as _MLModel
+        await db.execute(
+            sa_update(_MLModel)
+            .where(_MLModel.id == model.id)
+            .values(celery_task_id=async_result.id)
+        )
+        await db.commit()
 
         logger.info(f"Handed off training job for {model.name} v{next_version} to Celery Worker.")
 

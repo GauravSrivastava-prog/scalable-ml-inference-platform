@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSON, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +33,15 @@ class MLModel(Base):
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, server_default="pending"
     )
+    # ── Granular telemetry fields (Phase 2 — enterprise MLOps) ────────────────
+    # status_detail: human-readable checkpoint written by the Celery worker as
+    #   training progresses (e.g. "PREPROCESSING", "FITTING", "UPLOADING").
+    #   Cleared (set to None) when status reaches a terminal state.
+    status_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # celery_task_id: the Celery AsyncResult ID (.id from .delay()). Allows
+    #   the API to poll Celery directly for liveness without DB round-trips.
+    celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # ─────────────────────────────────────────────────────────────────────────
     file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     dataset_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     training_params: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

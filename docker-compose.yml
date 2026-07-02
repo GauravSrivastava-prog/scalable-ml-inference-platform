@@ -63,18 +63,66 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # ML Training Worker — ml_training queue
+  # Handles heavy, long-running training tasks. Low concurrency (2) prevents
+  # OOM from simultaneous large model fits. max-tasks-per-child=50 ensures
+  # each worker process is recycled after 50 tasks to release Python memory.
+  # ---------------------------------------------------------------------------
   model-worker:
     build:
       context: .
       dockerfile: model-service/Dockerfile
     container_name: scalablemlinferenceplatform-model-worker-1
-    command: celery -A app.services.training.celery_app worker --loglevel=info
+    command: >
+      celery -A app.services.training.celery_app worker
+      --loglevel=info
+      --queues=ml_training
+      --concurrency=2
+      --max-tasks-per-child=50
+      --hostname=training-worker@%h
     env_file: .env
+    environment:
+      # Explicit queue label for Prometheus celery_queue_length metric
+      - CELERY_DEFAULT_QUEUE=ml_training
     volumes:
       - model-storage:/app/storage
     depends_on:
-      - redis
-      - model-service
+      redis:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # ML Inference Worker — ml_inference + ml_dead_letter queues
+  # Handles fast batch inference tasks and dead-letter audit events.
+  # Higher concurrency (4) for throughput; short time limits keep it snappy.
+  # max-tasks-per-child=200 (lighter tasks shed memory much more slowly).
+  # ---------------------------------------------------------------------------
+  inference-worker:
+    build:
+      context: .
+      dockerfile: model-service/Dockerfile
+    container_name: scalablemlinferenceplatform-inference-worker-1
+    command: >
+      celery -A app.services.training.celery_app worker
+      --loglevel=info
+      --queues=ml_inference,ml_dead_letter
+      --concurrency=4
+      --max-tasks-per-child=200
+      --hostname=inference-worker@%h
+    env_file: .env
+    environment:
+      - CELERY_DEFAULT_QUEUE=ml_inference
+    volumes:
+      - model-storage:/app/storage:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
   # ---------------------------------------------------------------------------
   # Prediction Service (Scaled & Internal Only)
   # ---------------------------------------------------------------------------

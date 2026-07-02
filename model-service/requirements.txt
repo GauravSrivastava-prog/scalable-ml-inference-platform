@@ -17,3 +17,4 @@ xgboost>=2.0.0
 supabase
 celery==5.3.6
 redis==5.0.3
+tenacity>=8.2.3

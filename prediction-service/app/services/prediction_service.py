@@ -6,24 +6,26 @@ import time
 import uuid
 import json
 import hashlib
-import io
-import joblib
 from typing import Any
 from uuid import UUID
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from prometheus_client import Counter, Histogram
-from supabase import create_client
 
 # --- FASTAPI & DB IMPORTS ADDED FOR BACKGROUND TASKS ---
 from fastapi import BackgroundTasks
-from ml_platform_core.database import async_session_factory 
+from ml_platform_core.database import async_session_factory
 # -------------------------------------------------------
 
-# --- TIER 1 RAM CACHE ---
-IN_MEMORY_MODEL_CACHE: dict[str, Any] = {}
-# ------------------------
+# NOTE: IN_MEMORY_MODEL_CACHE (the plain module-level dict) has been removed.
+# All model loading now goes through the unified ModelCache LRU singleton
+# (app.core.cache_instance.model_cache), which:
+#   • Uses asyncio.Lock to prevent thundering-herd on concurrent cold starts
+#   • Offloads joblib.load + Supabase downloads to asyncio.to_thread()
+#   • Enforces a configurable LRU max_size to prevent memory exhaustion
+#   • Is shared across both predict() and batch_predict() paths
+
 
 # --- PROMETHEUS METRICS DEFINITIONS ---
 INFERENCE_REQUESTS = Counter(
@@ -151,31 +153,24 @@ class PredictionService:
         start_time = time.perf_counter()
 
         try:
-            # --- SUPABASE WITH IN-MEMORY CACHE ---
+            # ── TIER 1: Unified LRU model cache ────────────────────────────────
+            # model_cache.get_model() is fully non-blocking:
+            #   • On a hit  — returns the in-RAM artifact instantly (no I/O)
+            #   • On a miss — tries local volume first, then Supabase as fallback,
+            #                  both inside asyncio.to_thread() — never stalls the loop
+            #   • asyncio.Lock prevents concurrent misses from all downloading
+            #     the same model simultaneously (thundering-herd protection)
             if not model.file_path:
                 raise ResourceNotFoundError("Model file path missing from DB")
 
-            if model.file_path in IN_MEMORY_MODEL_CACHE:
-                logger.info("[TIER 1 HIT] Loading model instantly from RAM")
-                model_artifact = IN_MEMORY_MODEL_CACHE[model.file_path]
-            else:
-                url: str = os.environ.get("SUPABASE_URL")
-                key: str = os.environ.get("SUPABASE_KEY")
-                
-                if url and key:
-                    logger.info("[TIER 1 MISS] Downloading model from Supabase...")
-                    supabase = create_client(url, key)
-                    file_bytes = supabase.storage.from_("models").download(model.file_path)
-                    model_artifact = joblib.load(io.BytesIO(file_bytes))
-                else:
-                    logger.info("[TIER 1 MISS] Loading model from local Docker volume...")
-                    # Build absolute path inside the prediction-service container
-                    local_path = os.path.join("/app/storage", model.file_path)
-                    model_artifact = joblib.load(local_path)
-                
-                # Save it to RAM so we never have to download it again
-                IN_MEMORY_MODEL_CACHE[model.file_path] = model_artifact
-            # -------------------------------------
+            local_path = os.path.join("/app/storage", model.file_path)
+            model_artifact = await model_cache.get_model(
+                local_path=local_path,
+                supabase_url=os.environ.get("SUPABASE_URL"),
+                supabase_key=os.environ.get("SUPABASE_KEY"),
+                cloud_path=model.file_path,
+            )
+            # ─────────────────────────────────────────────────────────────────
 
             pipeline = model_artifact["pipeline"]
             feature_columns: list[str] = model_artifact["feature_columns"]
@@ -353,33 +348,24 @@ class PredictionService:
                 f"Model is not ready for inference (status: {model.status})"
             )
 
-        # --- SUPABASE WITH IN-MEMORY CACHE ---
+        # ── TIER 1: Unified LRU model cache ────────────────────────────────────
+        # model_cache.get_model() is fully non-blocking:
+        #   • On a hit  — returns the in-RAM artifact instantly (no I/O)
+        #   • On a miss — tries local volume first, then Supabase as fallback,
+        #                  both inside asyncio.to_thread() — never stalls the loop
+        #   • asyncio.Lock prevents concurrent misses from all downloading
+        #     the same model simultaneously (thundering-herd protection)
         if not model.file_path:
             raise ResourceNotFoundError("Model file path missing from DB")
 
-        try:
-            if model.file_path in IN_MEMORY_MODEL_CACHE:
-                logger.info("[TIER 1 HIT] Loading model instantly from RAM")
-                model_artifact = IN_MEMORY_MODEL_CACHE[model.file_path]
-            else:
-                url: str = os.environ.get("SUPABASE_URL")
-                key: str = os.environ.get("SUPABASE_KEY")
-                
-                if url and key:
-                    logger.info("[TIER 1 MISS] Downloading model from Supabase...")
-                    supabase = create_client(url, key)
-                    file_bytes = supabase.storage.from_("models").download(model.file_path)
-                    model_artifact = joblib.load(io.BytesIO(file_bytes))
-                else:
-                    logger.info("[TIER 1 MISS] Loading model from local Docker volume...")
-                    local_path = os.path.join("/app/storage", model.file_path)
-                    model_artifact = joblib.load(local_path)
-                
-                IN_MEMORY_MODEL_CACHE[model.file_path] = model_artifact
-                
-        except Exception as e:
-            raise ResourceNotFoundError(f"Cloud storage error: {str(e)}")
-        # -------------------------------------
+        local_path = os.path.join("/app/storage", model.file_path)
+        model_artifact = await model_cache.get_model(
+            local_path=local_path,
+            supabase_url=os.environ.get("SUPABASE_URL"),
+            supabase_key=os.environ.get("SUPABASE_KEY"),
+            cloud_path=model.file_path,
+        )
+        # ──────────────────────────────────────────────────────────────────────
 
         pipeline = model_artifact["pipeline"]
         feature_columns: list[str] = model_artifact["feature_columns"]

@@ -26,7 +26,12 @@ class ModelTrainResponse(BaseModel):
     model_id: UUID
     name: str
     version: int
+    algorithm: str
     status: str
+    metrics: dict[str, Any] | None = None
+    # Telemetry fields — present once the worker starts processing
+    status_detail: str | None = None
+    celery_task_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -37,6 +42,9 @@ class ModelResponse(BaseModel):
     version: int
     algorithm: str
     status: str
+    # Granular telemetry — written by the Celery worker at each pipeline stage
+    status_detail: str | None = None
+    celery_task_id: str | None = None
     metrics: dict[str, Any] | None = None
     training_params: dict[str, Any] | None = None
     created_at: datetime
